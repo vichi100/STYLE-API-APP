@@ -1,0 +1,11 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "style_advisor",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "A4E2A7C0-3FA3-4AFE-B78D-3D0D4408A22B"
+        }
+    ]
+}
