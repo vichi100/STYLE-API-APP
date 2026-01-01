@@ -46,7 +46,7 @@ class ChatScreen extends ConsumerWidget {
           children: [
             Icon(Icons.chat_bubble_outline, size: 64),
             SizedBox(height: 16),
-            Text('Kai ChatBot Interface'),
+            Text('Inspire / Style / Slay / Unbothered'),
           ],
         ),
       ),

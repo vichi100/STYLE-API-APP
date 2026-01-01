@@ -22,7 +22,7 @@ class ScaffoldWithNavBar extends ConsumerWidget {
 
     // Define distinct glow colors for each tab
     final glowColors = [
-      Colors.cyanAccent,            // Kai
+      Colors.white,                 // Kai (White Glow Request)
       Colors.amberAccent,           // Top Match
       Colors.deepOrangeAccent,      // Mismatch
       Colors.greenAccent,           // Wardrobe
