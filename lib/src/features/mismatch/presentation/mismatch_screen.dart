@@ -17,7 +17,8 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   List<String?> _selectedTops = [null];
   String? _selectedBottom;
   String? _analysisResult;
-  String? _openCategory = 'wtop';
+  String? _openTopCategory = 'wtop'; // Default open
+  String? _openBottomCategory = 'wbottom'; // Default open
   bool _isAnalyzing = false;
   bool _showMergeOverlay = false;
   bool _isSinglesMode = false; // New state for Singles View
@@ -44,15 +45,27 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   }
 
   double _getTabPosition(String id, double screenWidth) {
-    if (_openCategory == id) return screenWidth - 35;
+    if (_openTopCategory == id) return screenWidth - 28;
     
     final categories = ['wtop', 'jacket', 'shirt'];
-    final closed = categories.where((c) => c != _openCategory).toList();
+    final closed = categories.where((c) => c != _openTopCategory).toList();
     int index = closed.indexOf(id);
     if (index == -1) return 0;
     
     int dist = (closed.length - 1) - index;
-    return dist * 35.0;
+    return dist * 28.0; // Reduced width multiplier
+  }
+
+  double _getBottomTabPosition(String id, double screenWidth) {
+    if (_openBottomCategory == id) return screenWidth - 28;
+    
+    final categories = ['skirt', 'wbottom'];
+    final closed = categories.where((c) => c != _openBottomCategory).toList();
+    int index = closed.indexOf(id);
+    if (index == -1) return 0;
+    
+    int dist = (closed.length - 1) - index;
+    return dist * 28.0; 
   }
 
   Future<void> _analyze() async {
@@ -456,7 +469,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
           
           // Horizontal Split Tabs Side Drawer
           SizedBox(
-            height: 80,
+            height: 60, // Reduced height to match bottom images visual size
             width: double.infinity,
             child: Stack(
               clipBehavior: Clip.none,
@@ -469,21 +482,21 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                   top: 0,
                   bottom: 0,
                   width: MediaQuery.of(context).size.width,
-                  right: _openCategory != null ? 0 : -(MediaQuery.of(context).size.width - 35),
+                  right: _openTopCategory != null ? 0 : -(MediaQuery.of(context).size.width - 28),
                   child: Container(
-                    // Padding: Left 40 (Active Tab). Right 0 (Was 80).
-                    padding: const EdgeInsets.only(left: 40, right: 0), 
-                    color: Theme.of(context).colorScheme.surface,
+                    // Padding: Left 32 (Active Tab). Right 0.
+                    padding: const EdgeInsets.only(left: 32, right: 0), 
+                    color: Colors.grey.shade900.withOpacity(0.85), // Transparent Gray Background
                     child: imagesAsync.when(
                       data: (images) {
                         String filter = 'wtop';
-                        if (_openCategory == 'jacket') filter = 'jacket';
-                        if (_openCategory == 'shirt') filter = 'shirt';
+                        if (_openTopCategory == 'jacket') filter = 'jacket';
+                        if (_openTopCategory == 'shirt') filter = 'shirt';
                         
                         final filtered = images.where((path) => path.toLowerCase().contains(filter)).toList();
                         
-                        if (filtered.isEmpty && _openCategory != null) return Center(child: Text("No ${filter}s found"));
-                        if (_openCategory == null) return const SizedBox.shrink();
+                        if (filtered.isEmpty && _openTopCategory != null) return Center(child: Text("No ${filter}s found"));
+                        if (_openTopCategory == null) return const SizedBox.shrink();
 
                         return ListView.builder(
                           controller: _thumbController,
@@ -504,7 +517,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 width: 60,
-                                margin: const EdgeInsets.only(right: 8, top: 10, bottom: 10),
+                                margin: const EdgeInsets.only(right: 4), // Reduced Gap
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: isSelected ? Colors.cyanAccent : Colors.transparent, width: 2),
@@ -526,21 +539,30 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  top: 10,
+                  top: 0, // Align with top
                   // Hide in Singles Mode
                   right: _isSinglesMode ? -100 : _getTabPosition('wtop', MediaQuery.of(context).size.width),
                   child: GestureDetector(
-                    onTap: () => setState(() => _openCategory = _openCategory == 'wtop' ? null : 'wtop'),
+                    onTap: () => setState(() => _openTopCategory = _openTopCategory == 'wtop' ? null : 'wtop'),
                     child: Container(
-                       width: 35, height: 60,
+                       width: 28, height: 60, // Match Drawer Height (60)
                        alignment: Alignment.center,
                        decoration: BoxDecoration(
-                         color: _openCategory == 'wtop' ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
+                         // Transparent Gray always
+                         color: Colors.grey.shade900.withOpacity(0.6), 
                          borderRadius: BorderRadius.circular(8), 
-                         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))],
-                         border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                         boxShadow: [
+                           if (_openTopCategory == 'wtop') // Glow when open
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openTopCategory == 'wtop' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1, // Fixed 1px width
+                         ),
                        ),
-                       child: RotatedBox(quarterTurns: 3, child: Text("Tops", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _openCategory == 'wtop' ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.primary))),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Tops", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openTopCategory == 'wtop' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
                     ),
                   ),
                 ),
@@ -549,7 +571,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  top: 10,
+                  top: 0, // Align with top
                   // Always visible (or adjusted position if it's the only one?)
                   // If it's the only one, maybe move it to the top position or keep it?
                   // Let's keep it in its slot for now, or move it to be the first one.
@@ -557,17 +579,25 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                       ? _getTabPosition('wtop', MediaQuery.of(context).size.width) // Take 'Tops' position (first slot)
                       : _getTabPosition('jacket', MediaQuery.of(context).size.width),
                   child: GestureDetector(
-                    onTap: () => setState(() => _openCategory = _openCategory == 'jacket' ? null : 'jacket'),
+                    onTap: () => setState(() => _openTopCategory = _openTopCategory == 'jacket' ? null : 'jacket'),
                     child: Container(
-                       width: 35, height: 60,
+                       width: 28, height: 60, // Match Drawer Height (60)
                        alignment: Alignment.center,
                        decoration: BoxDecoration(
-                         color: _openCategory == 'jacket' ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
+                         color: Colors.grey.shade900.withOpacity(0.6),
                          borderRadius: BorderRadius.circular(8),
-                         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))],
-                         border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                         boxShadow: [
+                           if (_openTopCategory == 'jacket')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openTopCategory == 'jacket' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
                        ),
-                       child: RotatedBox(quarterTurns: 3, child: Text("Jacket", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _openCategory == 'jacket' ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.primary))),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Jacket", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openTopCategory == 'jacket' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
                     ),
                   ),
                 ),
@@ -576,100 +606,161 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  top: 10,
+                  top: 0, // Align with top
                   // Hide in Singles Mode
                   right: _isSinglesMode ? -100 : _getTabPosition('shirt', MediaQuery.of(context).size.width),
                   child: GestureDetector(
-                    onTap: () => setState(() => _openCategory = _openCategory == 'shirt' ? null : 'shirt'),
+                    onTap: () => setState(() => _openTopCategory = _openTopCategory == 'shirt' ? null : 'shirt'),
                     child: Container(
-                       width: 35, height: 60,
+                       width: 28, height: 60, // Match Drawer Height (60)
                        alignment: Alignment.center,
                        decoration: BoxDecoration(
-                         color: _openCategory == 'shirt' ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
+                         color: Colors.grey.shade900.withOpacity(0.6),
                          borderRadius: const BorderRadius.only(topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)), 
-                         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))],
-                         border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                         boxShadow: [
+                           if (_openTopCategory == 'shirt')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openTopCategory == 'shirt' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
                        ),
-                       child: RotatedBox(quarterTurns: 3, child: Text("Shirt", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _openCategory == 'shirt' ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.primary))),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Shirt", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openTopCategory == 'shirt' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
                     ),
                   ),
                 ),
               ],
             ),
           ),
+          
+          const SizedBox(height: 12), // Added Gap between drawers
 
-          // Bottom Image Strips (Pinned)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Bottom Drawer (Replaces Image Strip)
+          SizedBox(
+            height: 60,
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.centerRight,
               children: [
+                // Bottom Drawer Panel Content
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  bottom: 0,
+                  width: MediaQuery.of(context).size.width,
+                  right: (_openBottomCategory == 'skirt' || _openBottomCategory == 'wbottom') ? 0 : -(MediaQuery.of(context).size.width - 28),
+                  child: Container(
+                    padding: const EdgeInsets.only(left: 32, right: 0), 
+                    color: Colors.grey.shade900.withOpacity(0.85),
+                    child: imagesAsync.when(
+                      data: (images) {
+                        // Filter based on selected tab or defaults
+                        String filter = 'wbottom'; // Default to pants
+                        if (_openBottomCategory == 'skirt') filter = 'skirt';
+                        // In Singles Mode, we might want Bodycon? User asked for Skirt/Bottoms specifically.
+                        // Assuming this drawer is for standard mismatch mode.
+                        
+                        final filtered = images.where((path) => path.toLowerCase().contains(filter) || (filter == 'wbottom' && path.contains('pants'))).toList();
+                        
+                        if (filtered.isEmpty && (_openBottomCategory == 'skirt' || _openBottomCategory == 'wbottom')) return Center(child: Text("No ${filter}s found"));
+                        if (!(_openBottomCategory == 'skirt' || _openBottomCategory == 'wbottom')) return const SizedBox.shrink();
 
-                Text(
-                  'Quick Select Bottoms',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.secondary,
+                        return ListView.builder(
+                          controller: _bottomThumbController,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.only(right: 60),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final path = filtered[index];
+                            final isSelected = _selectedBottom == path;
+                            return GestureDetector(
+                              onTap: () => setState(() { 
+                                _selectedBottom = path;
+                                _analysisResult = null; 
+                              }),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 60,
+                                margin: const EdgeInsets.only(right: 4), // Reduced Gap
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: isSelected ? Colors.purpleAccent : Colors.transparent, width: 2),
+                                  boxShadow: isSelected ? [BoxShadow(color: Colors.purpleAccent.withOpacity(0.6), blurRadius: 8)] : [],
+                                ),
+                                child: ClipRRect(borderRadius: BorderRadius.circular(7), child: Image.asset(path, fit: BoxFit.cover)),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                       loading: () => const Center(child: CircularProgressIndicator()),
+                       error: (_, __) => const SizedBox(),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 80, // Reduced from 100 to match Top Strip (80)
-                  child: imagesAsync.when(
-                    data: (images) {
-                      // Filter based on mode
-                      final filter = _isSinglesMode ? 'bodycon' : 'wbottom';
-                      final filtered = images.where((path) => path.contains(filter)).toList();
-                      
-                      if (filtered.isEmpty) return const Center(child: Text("No items found"));
 
-                      return ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) {
-                          final path = filtered[index];
-                          final isSelected = _isSinglesMode ? path == _selectedBottom : _selectedBottom == path; 
-                          
-                          return GestureDetector(
-                            onTap: () => setState(() { 
-                               _selectedBottom = path;
-                               _analysisResult = null; 
-                            }),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 60, // Reduced from 80 to match Top Strip (60)
-                              margin: const EdgeInsets.only(right: 8, top: 10, bottom: 10), // Added vertical margin to match
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8), // Adjusted radius
-                                border: Border.all(color: isSelected ? Colors.purpleAccent : Colors.transparent, width: 2),
-                                boxShadow: isSelected ? [
-                                  BoxShadow(
-                                    color: Colors.purpleAccent.withOpacity(0.6),
-                                    blurRadius: 8,
-                                    spreadRadius: 2,
-                                  )
-                                ] : [],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(7), // Adjusted radius
-                                child: Image.asset(path, fit: BoxFit.cover),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (_, __) => const SizedBox(),
+                // Tab 1: Skirt
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  right: _isSinglesMode ? -100 : _getBottomTabPosition('skirt', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openBottomCategory = _openBottomCategory == 'skirt' ? null : 'skirt'),
+                    child: Container(
+                       width: 28, height: 60,
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade900.withOpacity(0.6),
+                         borderRadius: BorderRadius.circular(8), 
+                         boxShadow: [
+                           if (_openBottomCategory == 'skirt')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openBottomCategory == 'skirt' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Skirt", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openBottomCategory == 'skirt' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
+                  ),
+                ),
+
+                // Tab 2: Bottoms
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  right: _isSinglesMode ? -100 : _getBottomTabPosition('wbottom', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openBottomCategory = _openBottomCategory == 'wbottom' ? null : 'wbottom'),
+                    child: Container(
+                       width: 28, height: 60,
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade900.withOpacity(0.6), 
+                         borderRadius: const BorderRadius.only(topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)), 
+                         boxShadow: [
+                           if (_openBottomCategory == 'wbottom')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openBottomCategory == 'wbottom' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Bottoms", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openBottomCategory == 'wbottom' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
                   ),
                 ),
               ],
