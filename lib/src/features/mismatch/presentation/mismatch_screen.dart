@@ -259,126 +259,131 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                   // Unified Scroll View Area
                   // RESTORED: Selection Cards are always visible as per user request
                   SizedBox(
-                    height: 260, 
-                    child: Builder(
-                      builder: (context) {
-                         final screenWidth = MediaQuery.of(context).size.width;
-                         // Adjusted for peek
-                         final cardWidth = (screenWidth - 48) / 2.3;
-                         
-                         return SingleChildScrollView(
-                           scrollDirection: Axis.horizontal,
-                           child: Row(
-                             crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (_isSinglesMode) ...[
-                                  // SINGLES MODE: 2 Boxes (One Piece + Jacket)
-                                  Padding(
-                                   padding: const EdgeInsets.only(right: 16),
-                                   child: SizedBox(
-                                     width: cardWidth,
-                                     child: _SelectionCard(
-                                       title: 'One Piece', // Or 'Singles'
-                                       imagePath: _selectedBottom, // Bodycon stored in bottom slot
-                                       message: _selectedBottom == null ? 'Select Bodycon' : null,
-                                       onTap: () {
-                                          // Typically this might open the picker but we have the strip below.
-                                          _showImagePicker(false); // Can reuse standard picker logic if desired
-                                       },
-                                     ),
-                                   ),
-                                  ),
-                                  Padding(
-                                   padding: const EdgeInsets.only(right: 16),
-                                   child: SizedBox(
-                                     width: cardWidth,
-                                     child: _SelectionCard(
-                                       title: 'Jacket',
-                                       imagePath: _selectedTops.isNotEmpty ? _selectedTops[0] : null,
-                                       message: (_selectedTops.isEmpty || _selectedTops[0] == null) ? 'Select Jacket' : null,
-                                       onTap: () => _showImagePicker(true, topIndex: 0),
-                                     ),
-                                   ),
-                                  ),
-                                ] else ...[
-                                  // STANDARD MODE: Tops List + Add Button + Bottom Card
-                                  ...List.generate(_selectedTops.length, (index) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 16),
-                                    child: SizedBox(
-                                      width: cardWidth,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                           Stack(
-                                            children: [
-                                              _SelectionCard(
-                                                title: 'Top ${index + 1}',
-                                                imagePath: _selectedTops[index],
-                                                message: _selectedTops[index] == null ? 'Select Top' : null,
-                                                onTap: () => _showImagePicker(true, topIndex: index),
-                                              ),
-                                              if (_selectedTops.length > 1)
-                                                 Positioned(
-                                                   top: 12,
-                                                   right: 12,
-                                                   child: GestureDetector(
-                                                     onTap: () {
-                                                       setState(() {
-                                                         _selectedTops.removeAt(index);
-                                                         _analysisResult = null;
-                                                       });
-                                                     },
-                                                     child: Container(
-                                                       padding: const EdgeInsets.all(4),
-                                                       decoration: const BoxDecoration(
-                                                         color: Colors.black54,
-                                                         shape: BoxShape.circle,
-                                                         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
-                                                       ),
-                                                       child: const Icon(Icons.remove, size: 16, color: Colors.white),
-                                                     ),
-                                                   ),
-                                                 ),
-                                            ],
-                                           ),
-                                           // Add Button below first top if limit not reached
-                                           if (index == 0 && _selectedTops.length < 2)
-                                             IconButton(
-                                               onPressed: () => setState(() => _selectedTops.add(null)),
-                                               icon: const Icon(Icons.add, size: 30),
-                                               tooltip: "Add another Top",
-                                             ),
-                                        ],
+                    width: double.infinity, // Force full width to prevent growing with content
+                    height: 260, // Ensure height covers button area
+                    child: Stack(
+                      alignment: Alignment.center, // Center the image cards
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Removed Positioned.fill to allow auto-centering/sizing
+                          SizedBox(
+                            height: 260,
+                        child: Builder(
+                          builder: (context) {
+                            final screenWidth = MediaQuery.of(context).size.width;
+                            final cardWidth = (screenWidth - 48) / 2.3;
+
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_isSinglesMode) ...[
+                                    // SINGLES MODE: 2 Boxes (One Piece + Jacket)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 16),
+                                      child: SizedBox(
+                                        width: cardWidth,
+                                        child: _SelectionCard(
+                                          title: 'One Piece',
+                                          imagePath: _selectedBottom,
+                                          message: _selectedBottom == null ? 'Select Bodycon' : null,
+                                          onTap: () => _showImagePicker(false),
+                                        ),
                                       ),
                                     ),
-                                  );
-                                }),
-                                
-                                // Bottom Card (Standard Mode Only)
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      _SelectionCard(
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 16),
+                                      child: SizedBox(
+                                        width: cardWidth,
+                                        child: _SelectionCard(
+                                          title: 'Jacket',
+                                          imagePath: _selectedTops.isNotEmpty ? _selectedTops[0] : null,
+                                          message: (_selectedTops.isEmpty || _selectedTops[0] == null) ? 'Select Jacket' : null,
+                                          onTap: () => _showImagePicker(true, topIndex: 0),
+                                        ),
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    // STANDARD MODE: Tops List + Add Button + Bottom Card
+                                    ...List.generate(_selectedTops.length, (index) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(right: 16),
+                                        child: SizedBox(
+                                          width: cardWidth,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Stack(
+                                                children: [
+                                                  _SelectionCard(
+                                                    title: 'Top ${index + 1}',
+                                                    imagePath: _selectedTops[index],
+                                                    message: _selectedTops[index] == null ? 'Select Top' : null,
+                                                    onTap: () => _showImagePicker(true, topIndex: index),
+                                                  ),
+                                                  if (_selectedTops.length > 1)
+                                                    Positioned(
+                                                      top: 12,
+                                                      right: 12,
+                                                      child: GestureDetector(
+                                                        onTap: () {
+                                                          setState(() {
+                                                            _selectedTops.removeAt(index);
+                                                            _analysisResult = null;
+                                                          });
+                                                        },
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(4),
+                                                          decoration: const BoxDecoration(
+                                                            color: Colors.black54,
+                                                            shape: BoxShape.circle,
+                                                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
+                                                          ),
+                                                          child: const Icon(Icons.remove, size: 16, color: Colors.white),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              if (index == 0 && _selectedTops.length < 2)
+                                                IconButton(
+                                                  onPressed: () => setState(() => _selectedTops.add(null)),
+                                                  icon: const Icon(Icons.add, size: 30),
+                                                  tooltip: "Add another Top",
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }),
+
+                                    // Bottom Card (Standard Mode Only)
+                                    SizedBox(
+                                      width: cardWidth,
+                                      child: _SelectionCard(
                                         title: 'Bottom',
                                         imagePath: _selectedBottom,
                                         message: _selectedBottom == null ? 'Select Bottom' : null,
                                         onTap: () => _showImagePicker(false),
                                       ),
-                                      const SizedBox(height: 8),
-                                      _buildHistoryIcon(),
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                  ],
                                 ],
-                              ],
-                           ),
-                         );
-                      },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    // Removed closing parenthesis for Positioned.fill
+                    Positioned(
+                      right: -11,
+                      top: 200,
+                      child: _buildHistoryIcon(),
                     ),
-                  ),
+                  ],
+                ),
+              ),
                   const SizedBox(height: 32),
                   AnimatedBuilder(
                     animation: _glowController,
@@ -814,18 +819,13 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
  }
 
   Widget _buildHistoryIcon() {
-    // Moving 40px right to occupy the whitespace margin
-    // Moving 15px up to align with the + icon on the left
-    return Transform.translate(
-      offset: const Offset(40, -15),
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        icon: const Icon(Icons.history, color: Colors.white, size: 24),
-        onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("History Feature Coming Soon!")));
-        },
-      ),
+    return IconButton(
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      icon: const Icon(Icons.history, color: Colors.white, size: 24),
+      onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("History Feature Coming Soon!")));
+      },
     );
   }
 
