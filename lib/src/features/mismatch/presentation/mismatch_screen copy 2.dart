@@ -815,9 +815,8 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
   Widget _buildHistoryIcon() {
     // Moving 40px right to occupy the whitespace margin
-    // Moving 15px up to align with the + icon on the left
     return Transform.translate(
-      offset: const Offset(40, -15),
+      offset: const Offset(40, 0),
       child: IconButton(
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
