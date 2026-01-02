@@ -40,33 +40,34 @@ class ScaffoldWithNavBar extends ConsumerWidget {
         onChange: (index) => _onTap(context, index),
         initialIndex: navigationShell.currentIndex,
         glowColor: currentGlowColor.withOpacity(0.4),
-        background: theme.colorScheme.surfaceContainer, // Dark background for the bar itself
-        iconSize: 28,
+        // background: theme.colorScheme.surfaceContainer, // Dark background for the bar itself
+        background: Colors.black, // Darker background contrast
+        // iconSize: 28, // Removed to control size manually
         // The package expects a list of widgets for selected state
         selectedChildren: [
           _GlowingTab(
             glowColor: glowColors[0],
-            child: Icon(Icons.chat_bubble, color: glowColors[0]),
+            child: SizedBox(width: 60, height: 44, child: Center(child: Icon(Icons.chat_bubble, color: glowColors[0], size: 28))),
           ),
           _GlowingTab(
             glowColor: glowColors[1],
-            child: Icon(Icons.star, color: glowColors[1]),
+            child: SizedBox(width: 60, height: 44, child: Center(child: Icon(Icons.star, color: glowColors[1], size: 28))),
           ),
           _GlowingTab(
             glowColor: glowColors[2],
-            child: const _MismatchSocksIcon(isSelected: true),
+            child: const SizedBox(width: 60, height: 44, child: Center(child: _MismatchSocksIcon(isSelected: true))),
           ),
           _GlowingTab(
             glowColor: glowColors[3],
-            child: Icon(Icons.checkroom, color: glowColors[3]),
+            child: SizedBox(width: 60, height: 44, child: Center(child: Icon(Icons.checkroom, color: glowColors[3], size: 28))),
           ),
         ],
         // And a list for unselected state
         children: [
-          Icon(Icons.chat_bubble_outline, color: glowColors[0].withOpacity(0.5)),
-          Icon(Icons.star_outline, color: glowColors[1].withOpacity(0.5)),
-          const _MismatchSocksIcon(isSelected: false),
-          Icon(Icons.checkroom_outlined, color: glowColors[3].withOpacity(0.5)),
+          Container(width: 60, height: 44, color: Colors.transparent, child: Icon(Icons.chat_bubble_outline, color: glowColors[0].withOpacity(0.5), size: 28)),
+          Container(width: 60, height: 44, color: Colors.transparent, child: Icon(Icons.star_outline, color: glowColors[1].withOpacity(0.5), size: 28)),
+          Container(width: 60, height: 44, color: Colors.transparent, child: Center(child: _MismatchSocksIcon(isSelected: false))),
+          Container(width: 60, height: 44, color: Colors.transparent, child: Icon(Icons.checkroom_outlined, color: glowColors[3].withOpacity(0.5), size: 28)),
         ],
       ),
     );

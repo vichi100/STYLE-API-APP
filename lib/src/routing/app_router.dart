@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../features/auth/presentation/login_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/dashboard/presentation/scaffold_with_nav_bar.dart';
 import '../features/mismatch/presentation/mismatch_screen.dart';
@@ -22,10 +23,14 @@ final _shellNavigatorWardrobeKey = GlobalKey<NavigatorState>(debugLabel: 'shellW
 @riverpod
 GoRouter goRouter(GoRouterRef ref) {
   return GoRouter(
-    initialLocation: '/kai',
+    initialLocation: '/login',
     navigatorKey: _rootNavigatorKey,
     debugLogDiagnostics: true,
     routes: [
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return ScaffoldWithNavBar(navigationShell: navigationShell);
