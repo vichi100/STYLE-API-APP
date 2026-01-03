@@ -9,6 +9,7 @@ import '../features/mismatch/presentation/mismatch_screen.dart';
 import '../features/recommendations/presentation/top_match_screen.dart';
 import '../features/style_advisor/presentation/product_details_screen.dart';
 import '../features/wardrobe/presentation/wardrobe_screen.dart';
+import '../features/profile/presentation/profile_screen.dart';
 import '../theme/theme_provider.dart'; // Correct import path
 
 part 'app_router.g.dart';
@@ -30,6 +31,11 @@ GoRouter goRouter(GoRouterRef ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/profile',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ProfileScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

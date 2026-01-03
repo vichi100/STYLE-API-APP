@@ -88,8 +88,6 @@ class _MismatchSocksIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use hardcoded vibrant colors for the socks to ensure they look mismatched
-    // regardless of the active theme (which might be monochromatic purple).
     final color1 = isSelected 
         ? Colors.deepOrangeAccent 
         : Colors.deepOrangeAccent.withOpacity(0.5);
@@ -99,38 +97,55 @@ class _MismatchSocksIcon extends StatelessWidget {
         : Colors.purpleAccent.withOpacity(0.5);
 
     return SizedBox(
-      width: 24,
-      height: 24,
+      width: 28,
+      height: 28,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Sock 1 (Left, tilted, Secondary Color)
+          // Sock 1 (The "Left" Sock from the pair, colored color2)
           Positioned(
             left: 0,
-            top: 2,
+            bottom: 2,
             child: Transform.rotate(
-              angle: -0.2,
-              child: FaIcon(
-                FontAwesomeIcons.socks,
-                size: 18,
-                color: color2, 
-              ),
+              angle: -0.2, // Tilted left
+              child: _SingleSock(color: color2, isLeftSock: true),
             ),
           ),
-          // Sock 2 (Right, tilted, Primary Color)
+          // Sock 2 (The "Right" Sock from the pair, colored color1)
           Positioned(
             right: 0,
-            bottom: 0,
+            top: 2,
             child: Transform.rotate(
-              angle: 0.2,
-              child: FaIcon(
-                FontAwesomeIcons.socks,
-                size: 18,
-                color: color1,
-              ),
+              angle: 0.2, // Tilted right
+              child: _SingleSock(color: color1, isLeftSock: false),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SingleSock extends StatelessWidget {
+  final Color color;
+  final bool isLeftSock;
+
+  const _SingleSock({required this.color, required this.isLeftSock});
+
+  @override
+  Widget build(BuildContext context) {
+    // The 'socks' icon contains two socks. We crop it to show only one.
+    // We use a widthFactor > 0.5 to ensure we get the full sock shape
+    // adjusting the alignment to pick the left or right one.
+    return ClipRect(
+      child: Align(
+        alignment: isLeftSock ? Alignment.centerLeft : Alignment.centerRight,
+        widthFactor: 0.6, // Capture slightly more than half to be safe, or adjust to 0.5
+        child: FaIcon(
+          FontAwesomeIcons.socks,
+          size: 22, // Slightly larger base size
+          color: color,
+        ),
       ),
     );
   }

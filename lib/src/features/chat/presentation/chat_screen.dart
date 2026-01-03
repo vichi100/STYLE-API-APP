@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../theme/theme_provider.dart';
 
@@ -135,6 +136,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         centerTitle: true,
         backgroundColor: theme.colorScheme.surface,
         scrolledUnderElevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () {
+              context.push('/profile');
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Container(
         color: const Color(0xFF131314), // Gemini Dark Background
