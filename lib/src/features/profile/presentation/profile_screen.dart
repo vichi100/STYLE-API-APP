@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:style_advisor/src/features/camera/presentation/fashion_camera_screen.dart';
+import 'package:style_advisor/src/utils/image_helper.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -22,22 +24,84 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   File? _fullLengthImage;
   final ImagePicker _picker = ImagePicker();
 
-  Future<void> _pickImage(bool isCloseUp) async {
+  Future<void> _processPickedFile(XFile? rawImage, bool isCloseUp) async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
+      if (rawImage != null) {
+        // Compress using the new advanced ImageHelper
+        final File compressedFile = await ImageHelper.processImage(
+          File(rawImage.path),
+          type: ImageType.person,
+        );
+
         setState(() {
           if (isCloseUp) {
-            _closeUpImage = File(image.path);
+            _closeUpImage = compressedFile;
           } else {
-            _fullLengthImage = File(image.path);
+            _fullLengthImage = compressedFile;
           }
           _checkForChanges();
         });
+        
+        // Debug
+        // ignore: avoid_print
+        print("Final size: ${(await compressedFile.length()) / 1024} KB");
+      }
+    } catch (e) {
+      debugPrint('Error picking/processing image: $e');
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source, bool isCloseUp) async {
+    try {
+      if (source == ImageSource.camera) {
+         final XFile? image = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FashionCameraScreen()),
+        );
+        _processPickedFile(image, isCloseUp);
+      } else {
+        final XFile? rawImage = await _picker.pickImage(source: source);
+        _processPickedFile(rawImage, isCloseUp);
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
     }
+  }
+
+  void _showImageSourceModal(BuildContext context, bool isCloseUp) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1F20),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: const Text('Take Photo (Silhouette Mode)', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera, isCloseUp);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery, isCloseUp);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // Initial State Tracking
@@ -145,7 +209,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                    child: _buildImageBox(
                      label: 'Close Up Pic',
                      image: _closeUpImage,
-                     onTap: () => _pickImage(true),
+                     onTap: () => _showImageSourceModal(context, true),
                    ),
                  ),
                  const SizedBox(width: 16),
@@ -153,7 +217,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                    child: _buildImageBox(
                      label: 'Full Length',
                      image: _fullLengthImage,
-                     onTap: () => _pickImage(false),
+                     onTap: () => _showImageSourceModal(context, false),
                    ),
                  ),
                ],

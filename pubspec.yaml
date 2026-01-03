@@ -20,6 +20,10 @@ dependencies:
   glow_bottom_app_bar: ^1.5.2
   flutter_card_swiper: ^7.2.0
   image_picker: ^1.2.1
+  flutter_image_compress: ^2.4.0
+  path_provider: ^2.1.5
+  image: ^4.7.2
+  camera: ^0.11.3
 
 dev_dependencies:
   flutter_test:

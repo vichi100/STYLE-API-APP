@@ -146,29 +146,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Container(
-        color: const Color(0xFF131314), // Gemini Dark Background
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                reverse: true, // Start from bottom
-                itemCount: _messages.length + (_isTyping ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (_isTyping && index == 0) {
-                    return const _TypingIndicatorBubble();
-                  }
-                  // Adjust index if typing indicator is present
-                  final msgIndex = _isTyping ? index - 1 : index;
-                  final message = _messages[msgIndex];
-                  return _MessageBubble(message: message);
-                },
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Container(
+          color: const Color(0xFF131314), // Gemini Dark Background
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  reverse: true, // Start from bottom
+                  itemCount: _messages.length + (_isTyping ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (_isTyping && index == 0) {
+                      return const _TypingIndicatorBubble();
+                    }
+                    // Adjust index if typing indicator is present
+                    final msgIndex = _isTyping ? index - 1 : index;
+                    final message = _messages[msgIndex];
+                    return _MessageBubble(message: message);
+                  },
+                ),
               ),
-            ),
-            _buildInputArea(context), // Pass context for theme access if needed
-          ],
+              _buildInputArea(context), // Pass context for theme access if needed
+            ],
+          ),
         ),
       ),
     );
