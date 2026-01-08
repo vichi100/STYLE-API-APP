@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 enum ImageType {
@@ -14,48 +12,28 @@ class ImageHelper {
     File file, {
     required ImageType type,
   }) async {
-    final Uint8List bytes = await file.readAsBytes();
-
-    // Decode (handles HEIC → RGB on iOS)
-    img.Image? decoded = img.decodeImage(bytes);
-    if (decoded == null) return file;
-
-    // Fix EXIF rotation (VERY important for iOS)
-    decoded = img.bakeOrientation(decoded);
-
-    // Choose settings based on image type
     final settings = _settingsFor(type);
-
-    // Resize while keeping aspect ratio
-    if (decoded.width > settings.maxSize ||
-        decoded.height > settings.maxSize) {
-      decoded = img.copyResize(
-        decoded,
-        width: decoded.width > decoded.height ? settings.maxSize : null,
-        height: decoded.height >= decoded.width ? settings.maxSize : null,
-      );
-    }
-
-    // Encode JPEG
-    final jpgBytes = img.encodeJpg(
-      decoded,
-      quality: settings.quality,
-    );
-
     final tempDir = await getTemporaryDirectory();
-    final output = File(
-      '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg',
-    );
+    final targetPath = '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-    // Final compression pass (safe + small)
-    final compressed = await FlutterImageCompress.compressWithList(
-      Uint8List.fromList(jpgBytes),
+    // Native compression + Resize + Rotation in one go
+    // This runs on native thread (Android/iOS), not Dart thread
+    var result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
       quality: settings.quality,
+      minWidth: settings.maxSize,
+      minHeight: settings.maxSize,
+      autoCorrectionAngle: true, // Handles EXIF rotation natively
       format: CompressFormat.jpeg,
     );
 
-    await output.writeAsBytes(compressed);
-    return output;
+    if (result == null) {
+      // Fallback if native compression fails
+      return file;
+    }
+
+    return File(result.path);
   }
 
   static _ImageSettings _settingsFor(ImageType type) {

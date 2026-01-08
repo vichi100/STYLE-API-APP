@@ -12,7 +12,10 @@ import 'dart:ui';
 import 'package:share_plus/share_plus.dart';
 import 'package:style_advisor/src/features/auth/presentation/user_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 import 'upload_provider.dart';
+import 'upload_status_widget.dart';
 
 class WardrobeScreen extends ConsumerStatefulWidget {
   const WardrobeScreen({super.key});
@@ -248,6 +251,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
     );
   }
 
+
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       if (source == ImageSource.camera) {
@@ -261,97 +266,90 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
         final List<XFile> images = await _picker.pickMultiImage();
         if (images.isEmpty) return;
 
-        // Show Initial Progress
+        // Check Network Status
+        final connectivityResult = await Connectivity().checkConnectivity();
+        final bool isFastNetwork = connectivityResult.contains(ConnectivityResult.wifi) || 
+                                   connectivityResult.contains(ConnectivityResult.ethernet);
+
+
+        // Show Initial Progress (Persistent SnackBar)
         if (mounted && ref.read(currentTabProvider) == 3) {
            ref.read(isUploadingProvider.notifier).state = true;
            ref.read(uploadProgressProvider.notifier).state = "Processing ${images.length} items...";
 
            ScaffoldMessenger.of(context).showSnackBar(
              SnackBar(
-               content: _buildDeepDiveEffect(
-                 Text('Processing ${images.length} items...', style: const TextStyle(color: Colors.white))
-               ),
+               content: _buildDeepDiveEffect(const UploadStatusWidget()),
                backgroundColor: Colors.transparent,
                elevation: 0,
-               duration: const Duration(milliseconds: 500),
+               duration: const Duration(minutes: 5), // Keep open until manually hidden
                behavior: SnackBarBehavior.floating, 
-               margin: const EdgeInsets.only(bottom: 5, left: 0, right: 0), // End-to-end, just above nav
-               padding: EdgeInsets.zero, // Remove default padding for full effect
+               margin: const EdgeInsets.only(bottom: 5, left: 0, right: 0),
+               padding: EdgeInsets.zero, 
              ),
            );
         } else {
-           // Still set state even if snackbar is hidden (for global indicator)
-           if (mounted) {
-             ref.read(isUploadingProvider.notifier).state = true;
-           }
+           if (mounted) ref.read(isUploadingProvider.notifier).state = true;
         }
 
         int count = 0;
+        final int total = images.length;
+        
+        // Lightweight update function (Only updates State)
+        void updateProgress(int completed) {
+           ref.read(uploadProgressProvider.notifier).state = 'Uploading $completed of $total...';
+        }
+
         try {
-          for (final image in images) {
-             count++;
-             // Only show SnackBar if we are on the Wardrobe Tab (Index 3)
-             if (mounted) {
-               if (ref.read(currentTabProvider) == 3) {
-                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                 ScaffoldMessenger.of(context).showSnackBar(
-                   SnackBar(
-                     backgroundColor: Colors.transparent, 
-                     elevation: 0,
-                     behavior: SnackBarBehavior.floating,
-                     margin: const EdgeInsets.only(bottom: 5, left: 0, right: 0),
-                     padding: EdgeInsets.zero,
-                     content: _buildDeepDiveEffect(
-                       Row(
-                         children: [
-                           const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                           const SizedBox(width: 16),
-                           Expanded(
-                             child: Text(
-                               'Uploading $count of ${images.length}...',
-                               style: const TextStyle(color: Colors.white, fontSize: 16),
-                             ),
-                           ),
-                         ],
-                       ),
-                     ),
-                     duration: const Duration(minutes: 1), 
-                   ),
-                 );
-               } else {
-                 // Ensure hidden if not on tab
-                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
-               }
-             }
-             
-             // Update Provider
-             ref.read(uploadProgressProvider.notifier).state = 'Uploading $count of ${images.length}...';
-             
-             // Safe Sequential Upload (Silent to avoid SnackBar conflict)
-             await _processPickedFile(image, silent: true);
+          if (isFastNetwork) {
+            // Turbo Mode: Safe Parallelism (Batched)
+            // Processing too many images at once can crash the app (OOM) or choke bandwidth.
+            // We process in batches of 4 to balance Speed vs Stability.
+            const int batchSize = 4;
+            for (var i = 0; i < images.length; i += batchSize) {
+              final end = (i + batchSize < images.length) ? i + batchSize : images.length;
+              final batch = images.sublist(i, end);
+              
+              // Upload this batch in parallel, then wait for them to finish before starting next batch
+              await Future.wait(batch.map((image) async {
+                await _processPickedFile(image, silent: true);
+                count++;
+                updateProgress(count);
+              }));
+            }
+          } else {
+            // Sequential Uploads (Slow Network)
+            for (final image in images) {
+               await _processPickedFile(image, silent: true);
+               count++;
+               updateProgress(count);
+            }
           }
         } finally {
           // Reset Provider
-          ref.read(isUploadingProvider.notifier).state = false;
-          ref.read(uploadProgressProvider.notifier).state = null;
-
-          // Ensure we clear the progress bar
           if (mounted) {
-             ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ref.read(isUploadingProvider.notifier).state = false;
+            ref.read(uploadProgressProvider.notifier).state = null;
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            
+            // Show Success Message
              ScaffoldMessenger.of(context).showSnackBar(
                SnackBar(
-                 backgroundColor: const Color(0xFF1E1E1E),
-                 content: const Text('All items uploaded successfully!', style: TextStyle(color: Colors.greenAccent)),
-                 duration: const Duration(seconds: 3),
+                 backgroundColor: const Color(0xFF1E1E1E), 
+                 content: Text('${images.length} items uploaded successfully!', style: const TextStyle(color: Colors.white)),
+                 behavior: SnackBarBehavior.floating,
                ),
              );
           }
         }
-      }
+      } // Close ELSE block
     } catch (e) {
-      debugPrint('Error picking image: $e');
+      debugPrint("Error picking images: $e");
     }
   }
+
+
+
 
   void _showImageSourceModal(BuildContext context) {
     showModalBottomSheet(
