@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:style_advisor/src/features/auth/presentation/user_provider.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../../theme/theme_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -27,7 +29,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     // Initial greeting
     Future.delayed(const Duration(milliseconds: 500), () {
-      _addBotMessage("Hey! I'm Adā, your personal stylist. How you wanna slay today? ✨");
+      final user = ref.read(userProvider);
+      
+      final missingProfile = user?.missingProfile ?? false;
+      final missingWardrobe = user?.missingWardrobe ?? false;
+      final isNewUser = user?.isNewUser ?? false;
+
+      if (isNewUser || (missingProfile && missingWardrobe)) {
+         _addBotMessage(
+             "✨ Heyyy! Quick glow-up step 👀\n"
+             "Do this once & slay always 🔥\n\n"
+             "👤 [**Update your profile**](command:profile)\n\n"
+             "👗 [**Add your clothes**](command:wardrobe)\n\n"
+             "More personal. More accurate. Vibe check."
+         );
+      } else if (missingProfile) {
+         _addBotMessage(
+             "✨ Heyyy! Just one quick thing 👀\n"
+             "To give you the best recs, I need to see you shine! ✨\n\n"
+             "👤 [**Update your profile**](command:profile)\n\n"
+             "Trust me, it makes a huge difference! 💅"
+         );
+      } else if (missingWardrobe) {
+         _addBotMessage(
+             "✨ Heyyy! Your closet is looking a bit empty 👀\n"
+             "Let's fix that so I can style you properly! 🔥\n\n"
+             "👗 [**Add your clothes**](command:wardrobe)\n\n"
+             "More outfits = more slay. Period. 💅"
+         );
+      } else {
+         _addBotMessage("Hey! I'm Adā, your personal stylist. How you wanna slay today? ✨");
+      }
     });
   }
 
@@ -282,9 +314,23 @@ class _MessageBubble extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Flexible(
-              child: Text(
-                message.text ?? '',
-                style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.5),
+              child: MarkdownBody(
+                data: message.text ?? '',
+                onTapLink: (text, href, title) {
+                  if (href != null) {
+                    if (href == 'command:profile') {
+                      context.push('/profile');
+                    } else if (href == 'command:wardrobe') {
+                      context.go('/wardrobe'); // Use go for shell route branches
+                    }
+                  }
+                },
+                styleSheet: MarkdownStyleSheet(
+                  p: const TextStyle(color: Colors.white, fontSize: 16, height: 1.5),
+                  strong: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+                  listBullet: const TextStyle(color: Colors.white70),
+                  a: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, decoration: TextDecoration.none),
+                ),
               ),
             ),
           ],

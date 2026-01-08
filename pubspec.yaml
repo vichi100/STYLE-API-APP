@@ -24,6 +24,12 @@ dependencies:
   path_provider: ^2.1.5
   image: ^4.7.2
   camera: ^0.11.3
+  country_code_helper: ^0.2.4
+  country_codes: ^3.0.0
+  sms_autofill: ^2.4.0
+  flutter_dotenv: ^5.1.0
+  flutter_markdown: ^0.7.7+1
+  share_plus: ^12.0.1
 
 dev_dependencies:
   flutter_test:
@@ -37,6 +43,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - .env
     - assets/images/
     - assets/images/wardrobe/
     - assets/images/wardrobe/wbottom/

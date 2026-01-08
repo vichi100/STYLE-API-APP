@@ -200,9 +200,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
              
              const SizedBox(height: 32),
              const Divider(color: Colors.white10),
-             const SizedBox(height: 24),
+             const SizedBox(height: 10),
 
              // Image Upload Boxes
+             Container(
+               width: double.infinity,
+               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+               child: Text(
+                 "We can't style what we can't see,\nSo give us the deets!\nDrop the pics \nSo we can work the magic! ✨👗",
+                 textAlign: TextAlign.left,
+                 style: TextStyle(
+                   color: Colors.white70,
+                   fontSize: 16,
+                   fontStyle: FontStyle.italic,
+                   height: 1.5,
+                 ),
+               ),
+             ),
+             const SizedBox(height: 16),
              Row(
                children: [
                  Expanded(
@@ -215,7 +230,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                  const SizedBox(width: 16),
                  Expanded(
                    child: _buildImageBox(
-                     label: 'Full Length',
+                     label: 'Full Length Pic',
                      image: _fullLengthImage,
                      onTap: () => _showImageSourceModal(context, false),
                    ),

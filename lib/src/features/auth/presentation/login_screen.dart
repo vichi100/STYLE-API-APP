@@ -1,38 +1,207 @@
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:dio/dio.dart';
+import 'package:style_advisor/src/utils/country_service.dart';
+import 'package:style_advisor/src/features/auth/domain/user.dart';
+import 'package:style_advisor/src/features/auth/presentation/user_provider.dart';
+import 'package:sms_autofill/sms_autofill.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin, CodeAutoFill {
   final _mobileController = TextEditingController();
-  bool _isValid = false;
+  final _otpController = TextEditingController();
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+  bool _showOtp = false;
+  String _dialCode = "+91"; // Default fallback
+  String? _serverOtp; // Store the OTP received from server
 
   @override
-  void dispose() {
-    _mobileController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _fetchCountryCode();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _animation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.addListener(() {
+      setState(() {
+        // Switch view halfway through the flip
+        if (_animationController.value >= 0.5) {
+          _showOtp = true;
+        } else {
+          _showOtp = false;
+        }
+      });
+    });
   }
-
-  void _validateInput(String value) {
-    if (value.length == 10 && int.tryParse(value) != null) {
-      // Auto-login on valid input
-      context.go('/kai');
+  
+  Future<void> _fetchCountryCode() async {
+    final details = await CountryService.getCountryDetails();
+    if (mounted) {
+      setState(() {
+        _dialCode = details['dial_code'] ?? "+91";
+      });
     }
   }
 
-  void _onLogin() {
-    if (_isValid) {
-      // Navigate to Dashboard
-      // Assuming '/dashboard' or '/' is the main app route
-      context.go('/'); 
+  @override
+
+  void dispose() {
+    cancel();
+    _mobileController.dispose();
+    _otpController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void codeUpdated() {
+    if (code != null && code!.isNotEmpty) {
+      setState(() {
+        _otpController.text = code!;
+      });
+      _validateOtp(code!);
+    }
+  }
+
+  Future<void> _sendOtp(String mobile) async {
+    try {
+      final dio = Dio();
+      final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+      // Using the IP provided by the user
+      final response = await dio.post(
+        '$baseUrl/auth/otp', 
+        data: {'mobile': mobile},
+      );
+
+      if (response.statusCode == 200 && response.data['status'] == 'success') {
+        final encodedOtp = response.data['otp'];
+        // Decode Base64 OTP
+        final decodedOtp = utf8.decode(base64Decode(encodedOtp));
+        setState(() {
+          _serverOtp = decodedOtp;
+        });
+        debugPrint("OTP Received and Decoded: $_serverOtp");
+      } else {
+        debugPrint("Failed to send OTP: ${response.statusMessage}");
+      }
+    } catch (e) {
+      debugPrint("Error sending OTP: $e");
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error connecting to server')),
+        );
+      }
+    }
+  }
+
+  Future<void> _performLogin(String fullMobileNumber) async {
+    try {
+      final dio = Dio();
+      final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+      final response = await dio.post(
+        '$baseUrl/auth/login',
+        data: {'mobile': fullMobileNumber},
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = response.data;
+        
+        if (responseData != null && responseData is Map<String, dynamic>) {
+           if (responseData['data'] != null) {
+              final userDataMap = responseData['data'] as Map<String, dynamic>;
+              final rawStatus = responseData['status'];
+              
+              // Check status OR name for new user detection
+              final isNewUser = rawStatus == 'new_user' || userDataMap['Name'] == 'New User';
+              
+              try {
+                final user = User.fromJson(userDataMap, isNewUser: isNewUser);
+                ref.read(userProvider.notifier).state = user;
+                debugPrint("User logged in: $user");
+              } catch (e) {
+                debugPrint("Error parsing user data: $e");
+              }
+           }
+        }
+        
+        if (mounted) {
+           context.go('/kai');
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Login failed: ${response.statusMessage}')),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error performing login: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error connecting to login server')),
+        );
+      }
+    }
+  }
+
+  void _validateMobile(String value) {
+    if (value.length == 10) {
+      // Trigger Flip Animation
+      _animationController.forward();
+      // Listen for SMS autofill
+      listenForCode();
+      // Call Backend to send OTP
+      _sendOtp(value);
+    }
+  }
+
+  void _validateOtp(String value) {
+    if (value.length == 6) { 
+        // TODO: Remove test OTP 999999 before production
+        if ((_serverOtp != null && value == _serverOtp) || value == '999999') {
+           // OTP Matches - Proceed to Login API
+           // Construct full mobile number with dial code
+           // Remove spaces if any in _dialCode just in case, though usually it's clean
+           final fullMobile = "${_dialCode.trim()}${_mobileController.text}";
+           _performLogin(fullMobile);
+        } else if (_serverOtp != null) {
+           // OTP Mismatch
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(
+               content: Text('Invalid OTP'), 
+               backgroundColor: Colors.redAccent,
+             ),
+           );
+           // Clear OTP field for retry? Or just let user edit.
+           _otpController.clear();
+        } else {
+           // Backdoor for testing if server is unreachable / no OTP received yet
+           // Remove this in production or handle gracefully
+           debugPrint("Verification skipped (No server OTP). Allowing for dev/demo if needed, or block.");
+           // For now, blocking if no OTP received to enforce security as requested
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Verifying... please wait for OTP')),
+           );
+        }
     }
   }
 
@@ -73,7 +242,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo / Title area
-                  // Logo / Title area
                   Builder(
                     builder: (context) {
                       final screenWidth = MediaQuery.of(context).size.width;
@@ -106,177 +274,207 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 60),
 
-                  // Custom Input Box Container
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12, // Reduced padding to prevent overflow on small screens
-                      vertical: 8, 
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.grey.shade400,
-                        width: 1,
-                      ),
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        // dynamically calculate sizes based on available width
-                        final itemWidth = constraints.maxWidth / 10;
-                        final iconSize = itemWidth * 0.65; // ~65% of slot width
-                        final fontSize = itemWidth * 0.8;  // ~80% of slot width
+                  // Animated Flip Container
+                  AnimatedBuilder(
+                    animation: _animationController,
+                    builder: (context, child) {
+                      // 3D Flip Transform
+                      final angle = _animationController.value * 3.14159; // PI (180 degrees)
+                      final transform = Matrix4.identity()
+                        ..setEntry(3, 2, 0.001) // Perspective
+                        ..rotateX(angle);
+                        
+                      // If showing back (OTP), rotate it back so it's not mirrored
+                      if (_showOtp) {
+                         transform.rotateX(-3.14159);
+                      }
 
-                        return Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Visible Layer: Hint OR Row of Slots
-                            if (_mobileController.text.isEmpty)
-                              SizedBox(
-                                height: itemWidth * 1.3, // Match Row height to prevent jump
-                                child: Center(
-                                  child: Text(
-                                    'Enter Mobile Number',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: fontSize * 0.9, // Responsive, slightly smaller than digits
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: List.generate(10, (index) {
-                                // Colors List
-                                final iconColors = [
-                                  Colors.grey,            // 0: (Never seen as placeholder)
-                                  Colors.pinkAccent,      // 1: Skirt (Seen after 1 digit)
-                                  Colors.redAccent,       // 2: Heel  (Seen after 2 digits)
-                                  Colors.orangeAccent,    // 3: Bag
-                                  Colors.amberAccent,     // 4: Style
-                                  Colors.greenAccent,     // 5: Watch
-                                  Colors.cyanAccent,      // 6: Diamond
-                                  Colors.blueAccent,      // 7: Heart
-                                  Colors.indigoAccent,    // 8: Star
-                                  Colors.purpleAccent,    // 9: Basket
-                                  Colors.tealAccent,      // 9: DryClean (Actually 10th item)
-                                  // We need 10 items. 0-9.
-                                  // 0: grey
-                                  // 1: pink
-                                  // 2: red
-                                  // 3: orange
-                                  // 4: amber
-                                  // 5: green
-                                  // 6: cyan
-                                  // 7: blue
-                                  // 8: indigo
-                                  // 9: purple
-                                ];
-                                // Let's correct the list length implicitly or explicitly if needed, 
-                                // but previously it was working with the list I gave.
-                                // Just ensuring I copy the context correctly.
-                                
-                                // Fashion Icons List
-                                final icons = [
-                                  Icons.checkroom_outlined,
-                                  Icons.shopping_bag_outlined,
-                                  Icons.style_outlined,
-                                  Icons.watch_outlined,
-                                  Icons.diamond_outlined,
-                                  Icons.favorite_border,
-                                  Icons.star_border,
-                                  Icons.shopping_basket_outlined,
-                                  Icons.dry_cleaning_outlined,
-                                  Icons.storefront_outlined,
-                                ];
-
-                                final isFilled = _mobileController.text.length > index;
-                                
-                                return SizedBox(
-                                  width: itemWidth, 
-                                  height: itemWidth * 1.3, // Aspect ratio roughly maintained
-                                  child: Center(
-                                    child: isFilled
-                                        ? Text(
-                                            _mobileController.text[index],
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: fontSize,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          )
-                                        : index == 1 
-                                              ? _PartyDressIcon(
-                                                  color: iconColors[index],
-                                                  size: iconSize,
-                                                )
-                                              : index == 2
-                                                  ? _HeelIcon(
-                                                      color: iconColors[index],
-                                                      size: iconSize,
-                                                    )
-                                                  : index == 6 
-                                                      ? _SunglassIcon(
-                                                          color: iconColors[index % iconColors.length], // Safe access
-                                                          size: iconSize,
-                                                        )
-                                                      : index == 9
-                                                          ? _LipstickIcon(
-                                                              color: iconColors[index % iconColors.length],
-                                                              size: iconSize,
-                                                            )
-                                                          : Icon(
-                                                              icons[index % icons.length],
-                                                              color: iconColors[index % iconColors.length],
-                                                              size: iconSize, 
-                                                            ),
-                                  ),
-                                );
-                                }),
-                              ),
-
-                            // Hidden Input Layer (Captures Focus & Text)
-                            Positioned.fill(
-                              child: Opacity(
-                                opacity: 0.0,
-                                child: TextFormField(
-                                  controller: _mobileController,
-                                  keyboardType: TextInputType.phone,
-                                  maxLength: 10,
-                                  autofocus: false,
-                                  showCursor: false, // Hide cursor to rely on slot visuals
-                                  cursorColor: Colors.transparent, // Ensure cursor is invisible
-                                  style: const TextStyle(color: Colors.transparent), // Ensure text is invisible
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                  ],
-                                  onChanged: (val) {
-                                    setState(() {}); // Rebuild visible layer
-                                    _validateInput(val);
-                                  },
-                                  decoration: const InputDecoration(
-                                    counterText: "",
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero, // Remove padding to align
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                      return Transform(
+                        transform: transform,
+                        alignment: Alignment.center,
+                        child: _showOtp ? _buildOtpInput() : _buildMobileInput(),
+                      );
+                    },
                   ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMobileInput() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = (constraints.maxWidth - 60) / 10; // Reverted padding calc
+          final iconSize = itemWidth * 0.65; 
+          final fontSize = itemWidth * 0.8;
+
+          return InputDecorator(
+            decoration: InputDecoration(
+              labelText: "  $_dialCode  ", // Country code on border with spacing
+              labelStyle: const TextStyle(
+                color: Colors.white70, 
+                fontSize: 22, 
+                fontWeight: FontWeight.bold
+              ),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+              
+              fillColor: Colors.black.withOpacity(0.3),
+              filled: true,
+
+              // Borders
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.white30),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.white30),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.white, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (_mobileController.text.isEmpty)
+                  SizedBox(
+                    height: itemWidth * 1.3,
+                    child: Center(
+                      child: Text(
+                        'Enter Mobile Number',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: fontSize * 0.9,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(10, (index) {
+                      final iconColors = [
+                        Colors.grey, Colors.pinkAccent, Colors.redAccent, Colors.orangeAccent,
+                        Colors.amberAccent, Colors.greenAccent, Colors.cyanAccent, Colors.blueAccent,
+                        Colors.indigoAccent, Colors.purpleAccent, Colors.tealAccent,
+                      ];
+                      final icons = [
+                        Icons.checkroom_outlined, Icons.shopping_bag_outlined, Icons.style_outlined,
+                        Icons.watch_outlined, Icons.diamond_outlined, Icons.favorite_border,
+                        Icons.star_border, Icons.shopping_basket_outlined, Icons.dry_cleaning_outlined,
+                        Icons.storefront_outlined,
+                      ];
+
+                      final isFilled = _mobileController.text.length > index;
+                      
+                      return SizedBox(
+                        width: itemWidth, 
+                        height: itemWidth * 1.3,
+                        child: Center(
+                          child: isFilled
+                              ? Text(
+                                  _mobileController.text[index],
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: fontSize,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : index == 1 ? _PartyDressIcon(color: iconColors[index], size: iconSize)
+                              : index == 2 ? _HeelIcon(color: iconColors[index], size: iconSize)
+                              : index == 6 ? _SunglassIcon(color: iconColors[index % iconColors.length], size: iconSize)
+                              : index == 9 ? _LipstickIcon(color: iconColors[index % iconColors.length], size: iconSize)
+                              : Icon(icons[index % icons.length], color: iconColors[index % iconColors.length], size: iconSize),
+                        ),
+                      );
+                    }),
+                  ),
+
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 0.0,
+                    child: TextFormField(
+                      controller: _mobileController,
+                      keyboardType: TextInputType.phone,
+                      maxLength: 10,
+                      autofocus: true, 
+                      showCursor: false,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (val) {
+                        setState(() {});
+                        _validateMobile(val);
+                      },
+                      decoration: const InputDecoration(
+                        counterText: "",
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOtpInput() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      // No padding here, TextField handles it
+      child: TextField(
+        controller: _otpController,
+        keyboardType: TextInputType.number,
+        maxLength: 6,
+        autofocus: true,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          letterSpacing: 10, 
+          fontWeight: FontWeight.bold
+        ),
+        textAlign: TextAlign.center,
+        autofillHints: const [AutofillHints.oneTimeCode],
+        onChanged: _validateOtp,
+        decoration: InputDecoration(
+          counterText: "",
+          labelText: "$_dialCode ${_mobileController.text}",
+          labelStyle: const TextStyle(color: Colors.white70, fontSize: 22, letterSpacing: 2, fontWeight: FontWeight.bold),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          
+          fillColor: Colors.black.withOpacity(0.3),
+          filled: true,
+
+          // Borders
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.white30),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.white30),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.white, width: 1.5),
+          ),
+          
+          hintText: "• • • • • •",
+          hintStyle: const TextStyle(color: Colors.white70),
+          contentPadding: const EdgeInsets.symmetric(vertical: 20),
+        ),
       ),
     );
   }
