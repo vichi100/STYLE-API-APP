@@ -38,6 +38,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   // Selection State
   bool _isSelectionMode = false;
   bool _isPickingImage = false; // Separate state for OS-level gap
+  String _selectedCategory = 'All';
   final Set<String> _selectedServerIds = {};
   final Set<File> _selectedFiles = {};
 
@@ -91,7 +92,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                  final fullUrl = "$imageBaseUrl$relativeUrl";
                  final id = item['image_id']?.toString() ?? item['\$id']?.toString() ?? ''; // Fallback ID
                  debugPrint("Constructed URL: $fullUrl, ID: $id");
-                 return {'id': id, 'url': fullUrl};
+                 return {
+                   'id': id, 
+                   'url': fullUrl,
+                   'general_category': item['general_category'] ?? 'Uncategorized',
+                 };
               }
               return {'id': 'unknown', 'url': item.toString()};
             }).toList().cast<Map<String, dynamic>>();
@@ -138,11 +143,29 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
       );
 
       if (response.statusCode == 200) {
-         if (mounted) {
-           setState(() {
-             _uploadedImages.add(file);
-             _highlightedItem = file; // Trigger highlight
-           });
+          if (mounted) {
+            final data = response.data['data'];
+            if (data != null) {
+              final imageBaseUrl = dotenv.env['IMAGE_BASE_URL']?.trim() ?? '';
+              final relativeUrl = data['image_url'] ?? '';
+              final fullUrl = "$imageBaseUrl$relativeUrl";
+              final newImage = {
+                 'id': data['image_id']?.toString() ?? data['wardrobe_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(), 
+                 'url': fullUrl,
+                 'general_category': data['general_category'] ?? 'Uncategorized'
+              };
+              
+              setState(() {
+                _serverImages.insert(0, newImage);
+                _highlightedItem = newImage; // Trigger highlight with new server map
+              });
+            } else {
+               // Fallback if data is missing, though strictly should not happen based on API
+               setState(() {
+                 _uploadedImages.add(file);
+                 _highlightedItem = file;
+               });
+            }
 
            if (!silent) {
              ScaffoldMessenger.of(context).showSnackBar(
@@ -587,6 +610,31 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
 
     // Combine lists: uploaded first, then server
     
+
+
+    // Compute Categories
+    final Set<String> categories = {'All'};
+    for (final item in _serverImages) {
+       if (item['general_category'] != null) {
+          categories.add(item['general_category'].toString());
+       }
+    }
+    final sortedCategories = categories.toList()..sort((a, b) {
+       if (a == 'All') return -1;
+       if (b == 'All') return 1;
+       return a.compareTo(b);
+    });
+
+    // Filter Logic
+    final filteredImages = _selectedCategory == 'All' 
+        ? allImages 
+        : allImages.where((item) {
+            if (item is Map) {
+               return item['general_category'] == _selectedCategory;
+            }
+            return false; 
+          }).toList();
+
     final scaffold = Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -651,17 +699,64 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                 ],
               ),
             )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
+          : Column(
+              children: [
+                 // Category Chips
+                 Container(
+                   height: 50,
+                   margin: const EdgeInsets.symmetric(vertical: 8),
+                   child: ListView.builder(
+                     scrollDirection: Axis.horizontal,
+                     padding: const EdgeInsets.symmetric(horizontal: 16),
+                     itemCount: sortedCategories.length,
+                     itemBuilder: (context, index) {
+                       final category = sortedCategories[index];
+                       final isSelected = category == _selectedCategory;
+                       return Padding(
+                         padding: const EdgeInsets.only(right: 8),
+                         child: ChoiceChip(
+                           showCheckmark: false,
+                           label: Text(category),
+                           selected: isSelected,
+                           onSelected: (bool selected) {
+                             if (selected) {
+                               setState(() => _selectedCategory = category);
+                             }
+                           },
+                           backgroundColor: const Color(0xFF1E1E1E), // Dark Background
+                           selectedColor: const Color(0xFF333333), // Darker Selected State
+                           labelStyle: TextStyle(
+                             color: Colors.white,
+                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                           ),
+                           shape: RoundedRectangleBorder(
+                             borderRadius: BorderRadius.circular(20),
+                             side: BorderSide(
+                               color: isSelected ? Colors.white : Colors.white24,
+                               width: isSelected ? 1.5 : 1.0,
+                             ),
+                           ),
+                         ),
+                       );
+                     },
+                   ),
+                 ),
+                 
+                 // Main Grid
+                 Expanded(
+                   child: filteredImages.isEmpty 
+                    ? const Center(child: Text("No items found in this category.", style: TextStyle(color: Colors.white54)))
+                    : GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 childAspectRatio: 0.75,
               ),
-              itemCount: allImages.length,
-              itemBuilder: (context, index) {
-                final imageItem = allImages[index];
+               itemCount: filteredImages.length,
+               itemBuilder: (context, index) {
+                 final imageItem = filteredImages[index];
                 
                 final bool isSelected = (imageItem is File && _selectedFiles.contains(imageItem)) ||
                                         (imageItem is Map && _selectedServerIds.contains(imageItem['id']));
@@ -708,7 +803,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
 
 
                 // Highlight Logic for New Uploads
-                final isHighlighted = (imageItem is File) && (imageItem == _highlightedItem);
+                final isHighlighted = (imageItem == _highlightedItem);
 
                 Widget content;
                 
@@ -848,12 +943,15 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                             ),
                           ),
                         );
-                   },
-                   child: content,
-                );
-              },
-            ),
-    );
+                  },
+              child: content,
+           );
+         },
+       ),
+      ),
+     ],
+    ),
+   );
 
     return Stack(
       children: [

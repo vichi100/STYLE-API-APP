@@ -20,6 +20,18 @@ class _FashionCameraScreenState extends State<FashionCameraScreen> {
 
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
+    
+    if (cameras.isEmpty) {
+      debugPrint("No cameras found (Simulator or Permission denied)");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text("Camera not available on this device/simulator")),
+        );
+        Navigator.pop(context);
+      }
+      return;
+    }
+
     // Default to back camera
     final firstCamera = cameras.firstWhere(
       (cam) => cam.lensDirection == CameraLensDirection.back,
