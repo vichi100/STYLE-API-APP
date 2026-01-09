@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,8 +12,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:ui';
 import 'package:share_plus/share_plus.dart';
 import 'package:style_advisor/src/features/auth/presentation/user_provider.dart';
+import 'package:style_advisor/src/features/auth/domain/user.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'upload_provider.dart';
 import 'upload_status_widget.dart';
@@ -34,6 +37,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   
   // Selection State
   bool _isSelectionMode = false;
+  bool _isPickingImage = false; // Separate state for OS-level gap
   final Set<String> _selectedServerIds = {};
   final Set<File> _selectedFiles = {};
 
@@ -94,6 +98,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
             _isLoading = false;
           });
         }
+
+
 
 
       } else {
@@ -263,20 +269,32 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
         _processPickedFile(image);
       } else {
         // Gallery - Allow Multi-Select
-        final List<XFile> images = await _picker.pickMultiImage();
+        
+        // Show Spinner IMMEDIATELY to bridge OS gap
+        setState(() {
+          _isPickingImage = true;
+        });
+
+        final List<XFile> images;
+        try {
+           images = await _picker.pickMultiImage();
+        } finally {
+           // Hide spinner as soon as OS returns
+           if (mounted) {
+             setState(() {
+               _isPickingImage = false;
+             });
+           }
+        }
+        
         if (images.isEmpty) return;
 
-        // Check Network Status
-        final connectivityResult = await Connectivity().checkConnectivity();
-        final bool isFastNetwork = connectivityResult.contains(ConnectivityResult.wifi) || 
-                                   connectivityResult.contains(ConnectivityResult.ethernet);
-
-
-        // Show Initial Progress (Persistent SnackBar)
+        // Show Initial Progress (Persistent SnackBar) - Show IMMEDIATELY
         if (mounted && ref.read(currentTabProvider) == 3) {
            ref.read(isUploadingProvider.notifier).state = true;
            ref.read(uploadProgressProvider.notifier).state = "Processing ${images.length} items...";
 
+           ScaffoldMessenger.of(context).removeCurrentSnackBar(); // Force instant show
            ScaffoldMessenger.of(context).showSnackBar(
              SnackBar(
                content: _buildDeepDiveEffect(const UploadStatusWidget()),
@@ -291,6 +309,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
         } else {
            if (mounted) ref.read(isUploadingProvider.notifier).state = true;
         }
+
+        // Check Network Status (Background)
+        final connectivityResult = await Connectivity().checkConnectivity();
+        final bool isFastNetwork = connectivityResult.contains(ConnectivityResult.wifi) || 
+                                   connectivityResult.contains(ConnectivityResult.ethernet);
 
         int count = 0;
         final int total = images.length;
@@ -497,6 +520,17 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
 
   @override
   Widget build(BuildContext context) {
+    // Auto-fetch logic: Listen for login or first load
+    ref.listen<User?>(userProvider, (previous, next) {
+      if (next != null && (previous == null || next.id != previous.id)) {
+        debugPrint("User logged in/switched. Fetching wardrobe...");
+        // Reset loading state if needed to show spinner? Or just fetch silently/overlay?
+        // Let's set loading to true to show spinner.
+        setState(() => _isLoading = true);
+        _fetchWardrobeItems();
+      }
+    });
+
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -546,7 +580,9 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
     // Combine lists: uploaded first, then server
 
 
-    return Scaffold(
+    // Combine lists: uploaded first, then server
+    
+    final scaffold = Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         centerTitle: true,
@@ -625,67 +661,46 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                 final bool isSelected = (imageItem is File && _selectedFiles.contains(imageItem)) ||
                                         (imageItem is Map && _selectedServerIds.contains(imageItem['id']));
 
+                // Debug log to confirm builder execution
+                debugPrint("BUILDER: Item $index, Type: ${imageItem.runtimeType}");
+                
                 final imageWidget = Builder(
                   builder: (context) {
-                    if (imageItem is File) {
-                      return Image.file(
-                        imageItem,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                           return Container(
-                            width: double.infinity,
-                            height: double.infinity,
-                            color: Colors.grey[900],
-                            child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline, color: Colors.redAccent, size: 32),
-                                SizedBox(height: 8),
-                                Text(
-                                  'File Error',
-                                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    } else {
-                       // Map<String, dynamic>
-                       final itemMap = imageItem as Map<String, dynamic>;
-                       final url = itemMap['url'] as String;
-                       return Image.network(
-                        url,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          debugPrint("Image Load Error for $url: $error");
-                          return Container(
-                            width: double.infinity,
-                            height: double.infinity,
-                            color: Colors.grey[900],
-                            child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline, color: Colors.redAccent, size: 32),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Failed to Load',
-                                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                        },
-                      );
+                    try {
+                      if (imageItem is File) {
+                        return Image.file(
+                          imageItem,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                             return Container(color: Colors.grey[900], child: const Icon(Icons.error));
+                          },
+                        );
+                      } else {
+                         // Explicitly debug the item before casting
+                         // debugPrint("BUILDER_INNER: Processing map item: $imageItem");
+                         final itemMap = imageItem as Map; // removed strict generic for safety
+                         final url = itemMap['url']?.toString() ?? '';
+                         
+                         debugPrint("BUILDER_INNER: Creating DioNetworkImage for $url");
+                         
+                         return DioNetworkImage(
+                          imageUrl: url,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error) {
+                            debugPrint("!!! DIO IMAGE ERROR [$url] !!! : $error");
+                            return Container(color: Colors.grey[900], child: const Icon(Icons.broken_image));
+                          },
+                        );
+                      }
+                    } catch (e, stack) {
+                      debugPrint("BUILDER_CRASH: $e");
+                      debugPrint(stack.toString());
+                      return Container(color: Colors.red, child: Text("Error: $e"));
                     }
                   }
                 );
+
+
 
                 // Highlight Logic for New Uploads
                 final isHighlighted = (imageItem is File) && (imageItem == _highlightedItem);
@@ -774,7 +789,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                                     borderRadius: BorderRadius.circular(12),
                                     child: imageItem is File 
                                       ? Image.file(imageItem, fit: BoxFit.contain)
-                                      : Image.network((imageItem as Map<String, dynamic>)['url'], fit: BoxFit.contain),
+                                      : DioNetworkImage(
+                                          imageUrl: (imageItem as Map<String, dynamic>)['url'], 
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (context, error) => const Icon(Icons.error),
+                                        ),
                                   ),
                                 ),
                                 const SizedBox(height: 20),
@@ -819,16 +838,118 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                                     ),
                                   ),
                                 ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
+                        );
                    },
                    child: content,
                 );
               },
             ),
+    );
+
+    return Stack(
+      children: [
+        scaffold,
+        // Loading Overlay for "Copying..." Phase
+        if (_isPickingImage)
+          Container(
+            color: Colors.black54,
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   CircularProgressIndicator(color: Colors.white),
+                   SizedBox(height: 16),
+                   Text("Preparing Gallery...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class DioNetworkImage extends StatefulWidget {
+  final String imageUrl;
+  final BoxFit fit;
+  final Widget Function(BuildContext, Object)? errorBuilder;
+
+  const DioNetworkImage({required this.imageUrl, this.fit = BoxFit.cover, this.errorBuilder, super.key});
+
+  @override
+  State<DioNetworkImage> createState() => _DioNetworkImageState();
+}
+
+class _DioNetworkImageState extends State<DioNetworkImage> {
+  late Future<Response> _imageFuture; // Removed strict generic
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint("DIO_INIT: Requesting ${widget.imageUrl}");
+    _imageFuture = Dio().get(
+      widget.imageUrl, 
+      options: Options(
+        responseType: ResponseType.bytes,
+        receiveTimeout: const Duration(seconds: 10),
+      ),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant DioNetworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      debugPrint("DIO_UPDATE: Url changed to ${widget.imageUrl}");
+       _imageFuture = Dio().get(
+        widget.imageUrl, 
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 10),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Response>( // Removed strict generic
+      future: _imageFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+           return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueAccent));
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data?.data == null) {
+           debugPrint("DIO_ERROR [${widget.imageUrl}]: ${snapshot.error}");
+           if (widget.errorBuilder != null) return widget.errorBuilder!(context, snapshot.error ?? "Unknown Error");
+           return const Icon(Icons.error, color: Colors.red);
+        }
+        
+        try {
+          final data = snapshot.data!.data;
+          // Robust casting to Uint8List
+          List<int> bytes;
+          if (data is List<int>) {
+            bytes = data;
+          } else if (data is List) {
+            bytes = data.cast<int>();
+          } else {
+            throw Exception("Invalid data type: ${data.runtimeType}");
+          }
+          
+          return Image.memory(
+             Uint8List.fromList(bytes),
+             fit: widget.fit,
+          );
+        } catch (e) {
+          debugPrint("DIO_PARSE_ERROR: $e");
+          return const Icon(Icons.broken_image, color: Colors.orange);
+        }
+      },
     );
   }
 }

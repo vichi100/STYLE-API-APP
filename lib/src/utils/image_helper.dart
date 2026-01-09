@@ -14,7 +14,8 @@ class ImageHelper {
   }) async {
     final settings = _settingsFor(type);
     final tempDir = await getTemporaryDirectory();
-    final targetPath = '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final uniqueId = DateTime.now().microsecondsSinceEpoch.toString() + '_' + (1000 + DateTime.now().millisecond).toString(); 
+    final targetPath = '${tempDir.path}/$uniqueId.jpg';
 
     // Native compression + Resize + Rotation in one go
     // This runs on native thread (Android/iOS), not Dart thread
