@@ -260,6 +260,9 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
 
 
   Future<void> _pickImage(ImageSource source) async {
+    // Debounce: Prevent double-taps while picker is opening
+    if (_isPickingImage) return;
+
     try {
       if (source == ImageSource.camera) {
          final XFile? image = await Navigator.push(
@@ -418,7 +421,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
         } else {
           _selectedFiles.add(item);
         }
-      } else if (item is Map<String, dynamic>) {
+      } else if (item is Map) {
+        debugPrint("TOGGLE: Server Item selected: $item");
         final id = item['id'] as String;
         if (_selectedServerIds.contains(id)) {
           _selectedServerIds.remove(id);
@@ -430,6 +434,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   }
 
   Future<void> _deleteSelectedItems() async {
+    debugPrint("DELETE: Starting delete process...");
     final int count = _selectedFiles.length + _selectedServerIds.length;
     if (count == 0) return;
 
