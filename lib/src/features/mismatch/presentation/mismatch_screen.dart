@@ -10,7 +10,7 @@ import 'widgets/stylized_category_button.dart';
 import 'widgets/sliding_options_drawer.dart';
 
 
-enum _StripType { top, bottom, singles }
+enum _StripType { top, bottom, singles, footwear }
 
 class MismatchScreen extends ConsumerStatefulWidget {
   const MismatchScreen({super.key});
@@ -20,14 +20,15 @@ class MismatchScreen extends ConsumerStatefulWidget {
 }
 
 class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProviderStateMixin {
-  List<String?> _selectedTops = [null];
+  final List<String?> _selectedTops = [null]; // Start with one empty top slot
   String? _selectedBottom;
+  String? _selectedDress; // dedicated variable for Singles mode
+  String? _selectedFootwear;
   String? _analysisResult;
-  String? _openTopCategory = 'wtop'; // Default open
-  String? _openBottomCategory = 'wbottom'; // Default open
-  String? _activeTopCategory = 'Tops'; // Default Top Strip Open
-  String? _activeBottomCategory = 'Jeans'; // Default Bottom Strip Open
-  String? _activeSinglesCategory; // Default Singles Strip Closed
+  String? _activeTopCategory = 'Tops'; // Default open
+  String? _activeBottomCategory = 'Jeans'; // Default open
+  String? _activeSinglesCategory = 'Dress'; // Default open
+  String? _activeFootwearCategory = 'Heels'; // Default open
   bool _isAnalyzing = false;
   bool _showMergeOverlay = false;
   bool _isSinglesMode = false; // New state for Singles View
@@ -53,36 +54,14 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
     super.dispose();
   }
 
-  double _getTabPosition(String id, double screenWidth) {
-    if (_openTopCategory == id) return screenWidth - 28;
-    
-    final categories = ['wtop', 'jacket', 'shirt'];
-    final closed = categories.where((c) => c != _openTopCategory).toList();
-    int index = closed.indexOf(id);
-    if (index == -1) return 0;
-    
-    int dist = (closed.length - 1) - index;
-    return dist * 28.0; // Reduced width multiplier
-  }
 
-  double _getBottomTabPosition(String id, double screenWidth) {
-    if (_openBottomCategory == id) return screenWidth - 28;
-    
-    final categories = ['skirt', 'wbottom'];
-    final closed = categories.where((c) => c != _openBottomCategory).toList();
-    int index = closed.indexOf(id);
-    if (index == -1) return 0;
-    
-    int dist = (closed.length - 1) - index;
-    return dist * 28.0; 
-  }
 
   Future<void> _analyze() async {
     bool isValid = false;
 
     if (_isSinglesMode) {
       // In Singles Mode, we need at least the "One Piece" (which acts as a bottom slot)
-      if (_selectedBottom != null) {
+      if (_selectedDress != null) {
         isValid = true;
       }
     } else {
@@ -295,10 +274,10 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                         width: cardWidth,
                                         child: _SelectionCard(
                                           title: 'One Piece',
-                                          imagePath: _selectedBottom,
-                                          message: _selectedBottom == null ? 'Select Bodycon' : null,
-                                          onTap: () => _showImagePicker(false),
-                                          onDelete: () => setState(() => _selectedBottom = null),
+                                          imagePath: _selectedDress,
+                                          message: _selectedDress == null ? 'Select Bodycon' : null,
+                                          onTap: null, // No manual picker for now, use drawer
+                                          onDelete: () => setState(() => _selectedDress = null),
                                           // Add network image support in _SelectionCard or pass transparently if it handles URLs?
                                           // Assuming _SelectionCard needs update for network images too.
                                         ),
@@ -309,13 +288,11 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                       child: SizedBox(
                                         width: cardWidth,
                                         child: _SelectionCard(
-                                          title: 'Jacket',
-                                          imagePath: _selectedTops.isNotEmpty ? _selectedTops[0] : null,
-                                          message: (_selectedTops.isEmpty || _selectedTops[0] == null) ? 'Select Jacket' : null,
-                                          onTap: () => _showImagePicker(true, topIndex: 0),
-                                          onDelete: () => setState(() {
-                                              if (_selectedTops.isNotEmpty) _selectedTops[0] = null;
-                                          }),
+                                          title: 'Footwear',
+                                          imagePath: _selectedFootwear,
+                                          message: _selectedFootwear == null ? 'Select Shoes' : null,
+                                          onTap: () => _onCategorySelected('Footwear'), // Or create picker? Drawer is easier.
+                                          onDelete: () => setState(() => _selectedFootwear = null),
                                         ),
                                       ),
                                     ),
@@ -617,6 +594,53 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                 ),
               ),
             ),
+
+          if (_isSinglesMode) const SizedBox(height: 2), // Gap
+
+          // Footwear Drawer for Singles Mode
+          if (_isSinglesMode)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
+              child: SizedBox(
+                height: 70, 
+                child: imagesAsync.when(
+                  data: (items) {
+                    final footwearCategories = items
+                        .where((i) {
+                           final g = i.generalCategory.toLowerCase();
+                           return g.contains('shoe') || g.contains('footwear') || g.contains('heel') || g.contains('boot') || g.contains('sandal') || g.contains('sneaker');
+                        })
+                        .map((i) => i.customCategory)
+                        .toSet()
+                        .toList();
+                    
+                    if (footwearCategories.isEmpty) {
+                       footwearCategories.addAll(['Heels', 'Boots', 'Sneakers']);
+                    }
+                    footwearCategories.sort();
+
+                    return SlidingOptionsDrawer(
+                      isSmall: true,
+                      options: footwearCategories.map((cat) => 
+                        DrawerOptionItem(
+                          label: cat, 
+                          color: _getColorForCategory(cat), 
+                          onTap: () => setState(() => _activeFootwearCategory = cat)
+                        )
+                      ).toList(),
+                      child: Align(
+                         alignment: Alignment.centerLeft, 
+                         child: _activeFootwearCategory != null
+                             ? _buildInlineImageStrip(_activeFootwearCategory!, stripType: _StripType.footwear) 
+                             : const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, s) => const Center(child: Text("Error")),
+                ),
+              ),
+            ),
           
           const SizedBox(height: 12), // Gap
 
@@ -686,11 +710,16 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                      final g = item.generalCategory.toLowerCase();
                      final isBottom = g == 'bottom' || g.contains('pant') || g.contains('skirt') || g.contains('short');
                      return catMatch && isBottom;
-                 } else {
+                 } else if (stripType == _StripType.singles) {
                      // Singles: Match custom category AND ensure general category is valid
                      final g = item.generalCategory.toLowerCase();
                      final isSingle = g.contains('dress') || g.contains('gown') || g.contains('suit') || g.contains('jump') || g.contains('one');
                      return catMatch && isSingle;
+                 } else {
+                     // Footwear
+                     final g = item.generalCategory.toLowerCase();
+                     final isFootwear = g.contains('shoe') || g.contains('footwear') || g.contains('heel') || g.contains('boot') || g.contains('sandal') || g.contains('sneaker');
+                     return catMatch && isFootwear;
                  }
 
                }).toList();
@@ -708,8 +737,11 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                   final path = item.imageUrl;
                   
                   // Check if selected
+
                   bool isSelected = false;
                   if (stripType == _StripType.bottom) isSelected = _selectedBottom == path;
+                  else if (stripType == _StripType.singles) isSelected = _selectedDress == path;
+                  else if (stripType == _StripType.footwear) isSelected = _selectedFootwear == path;
                   else isSelected = _selectedTops.contains(path);
 
                   return GestureDetector(
@@ -717,17 +749,19 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                       setState(() {
                         if (stripType == _StripType.bottom) {
                              _selectedBottom = path;
+                        } else if (stripType == _StripType.footwear) {
+                             _selectedFootwear = path;
                         } else {
-                          // Tops or Singles
-                          if (_selectedTops.isNotEmpty) {
-                             _selectedTops[0] = path;
+                          // Tops or Singles (One Piece)
+                          if (_isSinglesMode && stripType == _StripType.singles) {
+                              _selectedDress = path; // Updated to use dedicated Dress variable
                           } else {
-                             _selectedTops.add(path);
-                          }
-                          
-                          if (stripType == _StripType.singles) {
-                              _isSinglesMode = true; 
-                              _selectedBottom = null; 
+                             // Tops
+                              if (_selectedTops.isNotEmpty) {
+                                  _selectedTops[0] = path;
+                              } else {
+                                  _selectedTops.add(path);
+                              }
                           }
                         }
                         _analysisResult = null;
@@ -896,7 +930,7 @@ class _SelectionCard extends StatelessWidget {
   final String title;
   final String? imagePath;
   final String? message;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback? onDelete; // Added
   final VoidCallback? onShare;  // Added
   final Widget? overlay;
@@ -905,7 +939,7 @@ class _SelectionCard extends StatelessWidget {
     required this.title,
     required this.imagePath,
     this.message,
-    required this.onTap,
+    this.onTap,
     this.onDelete, // Modified
     this.onShare,  // Modified
     this.overlay,
