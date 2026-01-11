@@ -5,10 +5,6 @@ import '../../wardrobe/application/wardrobe_images_provider.dart';
 import 'widgets/horizontal_image_drawer.dart';
 import 'widgets/particle_overlay.dart';
 import 'widgets/stylized_category_button.dart';
-import 'widgets/sliding_options_drawer.dart';
-
-
-enum _StripType { top, bottom, singles }
 
 class MismatchScreen extends ConsumerStatefulWidget {
   const MismatchScreen({super.key});
@@ -23,9 +19,6 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   String? _analysisResult;
   String? _openTopCategory = 'wtop'; // Default open
   String? _openBottomCategory = 'wbottom'; // Default open
-  String? _activeTopCategory = 'Tops'; // Default Top Strip Open
-  String? _activeBottomCategory = 'Jeans'; // Default Bottom Strip Open
-  String? _activeSinglesCategory; // Default Singles Strip Closed
   bool _isAnalyzing = false;
   bool _showMergeOverlay = false;
   bool _isSinglesMode = false; // New state for Singles View
@@ -296,7 +289,6 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                           imagePath: _selectedBottom,
                                           message: _selectedBottom == null ? 'Select Bodycon' : null,
                                           onTap: () => _showImagePicker(false),
-                                          onDelete: () => setState(() => _selectedBottom = null),
                                         ),
                                       ),
                                     ),
@@ -309,9 +301,6 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                           imagePath: _selectedTops.isNotEmpty ? _selectedTops[0] : null,
                                           message: (_selectedTops.isEmpty || _selectedTops[0] == null) ? 'Select Jacket' : null,
                                           onTap: () => _showImagePicker(true, topIndex: 0),
-                                          onDelete: () => setState(() {
-                                              if (_selectedTops.isNotEmpty) _selectedTops[0] = null;
-                                          }),
                                         ),
                                       ),
                                     ),
@@ -325,18 +314,38 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              _SelectionCard(
-                                                  title: 'Top ${index + 1}',
-                                                  imagePath: _selectedTops[index],
-                                                  message: _selectedTops[index] == null ? 'Select Top' : null,
-                                                  onTap: () => _showImagePicker(true, topIndex: index),
-                                                  onDelete: _selectedTops.length > 1 ? () {
-                                                    setState(() {
-                                                      _selectedTops.removeAt(index);
-                                                      _analysisResult = null;
-                                                    });
-                                                  } : null,
-                                                ),
+                                              Stack(
+                                                children: [
+                                                  _SelectionCard(
+                                                    title: 'Top ${index + 1}',
+                                                    imagePath: _selectedTops[index],
+                                                    message: _selectedTops[index] == null ? 'Select Top' : null,
+                                                    onTap: () => _showImagePicker(true, topIndex: index),
+                                                  ),
+                                                  if (_selectedTops.length > 1)
+                                                    Positioned(
+                                                      top: 12,
+                                                      right: 12,
+                                                      child: GestureDetector(
+                                                        onTap: () {
+                                                          setState(() {
+                                                            _selectedTops.removeAt(index);
+                                                            _analysisResult = null;
+                                                          });
+                                                        },
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(4),
+                                                          decoration: const BoxDecoration(
+                                                            color: Colors.black54,
+                                                            shape: BoxShape.circle,
+                                                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
+                                                          ),
+                                                          child: const Icon(Icons.remove, size: 16, color: Colors.white),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
                                               if (index == 0 && _selectedTops.length < 2)
                                                 IconButton(
                                                   onPressed: () => setState(() => _selectedTops.add(null)),
@@ -357,7 +366,6 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                         imagePath: _selectedBottom,
                                         message: _selectedBottom == null ? 'Select Bottom' : null,
                                         onTap: () => _showImagePicker(false),
-                                        onDelete: () => setState(() => _selectedBottom = null),
                                       ),
                                     ),
                                   ],
@@ -471,85 +479,306 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
             ),
           ),
           
-          // Action Bar for Top Selection (Visible only when NOT in Singles Mode)
-          if (!_isSinglesMode)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), // Right Padding 0 for flush drawer
-              child: SizedBox(
-                height: 70, // Increased height for larger thumbnails
-                child: SlidingOptionsDrawer(
-                  isSmall: true,
-                  options: [
-                    DrawerOptionItem(label: "Tops", color: Colors.redAccent, onTap: () => setState(() => _activeTopCategory = 'Tops')),
-                    DrawerOptionItem(label: "Shirts", color: Colors.blue, onTap: () => setState(() => _activeTopCategory = 'Shirts')),
-                    DrawerOptionItem(label: "Layers", color: Colors.amber, onTap: () => setState(() => _activeTopCategory = 'Layers')),
-                    DrawerOptionItem(label: "Active", color: Colors.teal, onTap: () => setState(() => _activeTopCategory = 'Active')),
-                    DrawerOptionItem(label: "Ethnic", color: Colors.purpleAccent, onTap: () => setState(() => _activeTopCategory = 'Ethnic')),
-                  ],
-                  child: Align(
-                     alignment: Alignment.centerLeft, // Left align for strip
-                     child: _activeTopCategory != null 
-                         ? _buildInlineImageStrip(_activeTopCategory!, stripType: _StripType.top) 
-                         : const SizedBox.shrink(),
+          // Horizontal Split Tabs Side Drawer
+          SizedBox(
+            height: 60, // Reduced height to match bottom images visual size
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.centerRight,
+              children: [
+                // Drawer Panel Content
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  bottom: 0,
+                  width: MediaQuery.of(context).size.width,
+                  right: _openTopCategory != null ? 0 : -(MediaQuery.of(context).size.width - 28),
+                  child: Container(
+                    // Padding: Left 32 (Active Tab). Right 0.
+                    padding: const EdgeInsets.only(left: 32, right: 0), 
+                    color: Colors.grey.shade900.withOpacity(0.85), // Transparent Gray Background
+                    child: imagesAsync.when(
+                      data: (images) {
+                        String filter = 'wtop';
+                        if (_openTopCategory == 'jacket') filter = 'jacket';
+                        if (_openTopCategory == 'shirt') filter = 'shirt';
+                        
+                        final filtered = images.where((path) => path.toLowerCase().contains(filter)).toList();
+                        
+                        if (filtered.isEmpty && _openTopCategory != null) return Center(child: Text("No ${filter}s found"));
+                        if (_openTopCategory == null) return const SizedBox.shrink();
+
+                        return ListView.builder(
+                          controller: _thumbController,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.only(right: 70), // Ensure last items can be scrolled out from under tabs
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final path = filtered[index];
+                            final isSelected = _selectedTops.contains(path);
+                            return GestureDetector(
+                              onTap: () => setState(() { 
+                                // Quick select updates the first slot by default
+                                if (_selectedTops.isNotEmpty) {
+                                  _selectedTops[0] = path;
+                                }
+                                _analysisResult = null; 
+                              }),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 60,
+                                margin: const EdgeInsets.only(right: 4), // Reduced Gap
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: isSelected ? Colors.cyanAccent : Colors.transparent, width: 2),
+                                  boxShadow: isSelected ? [BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8)] : [],
+                                ),
+                                child: ClipRRect(borderRadius: BorderRadius.circular(7), child: Image.asset(path, fit: BoxFit.cover)),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                       loading: () => const Center(child: CircularProgressIndicator()),
+                       error: (_, __) => const SizedBox(),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-
-          if (!_isSinglesMode) const SizedBox(height: 2), // Gap
-
-         // Action Bar for Bottom Selection (Visible only when NOT in Singles Mode)
-          if (!_isSinglesMode)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
-              child: SizedBox(
-                height: 70, 
-                child: SlidingOptionsDrawer(
-                  isSmall: true,
-                  options: [
-                    DrawerOptionItem(label: "Jeans", color: Colors.blueGrey, onTap: () => setState(() => _activeBottomCategory = 'Jeans')),
-                    DrawerOptionItem(label: "Trousers", color: Colors.brown, onTap: () => setState(() => _activeBottomCategory = 'Trousers')),
-                    DrawerOptionItem(label: "Skirts", color: Colors.pinkAccent, onTap: () => setState(() => _activeBottomCategory = 'Skirts')),
-                    DrawerOptionItem(label: "Shorts", color: Colors.orange, onTap: () => setState(() => _activeBottomCategory = 'Shorts')),
-                    DrawerOptionItem(label: "Ethnic", color: Colors.purple, onTap: () => setState(() => _activeBottomCategory = 'Ethnic')),
-                    DrawerOptionItem(label: "Active", color: Colors.teal, onTap: () => setState(() => _activeBottomCategory = 'Active')),
-                  ],
-                  child: Align(
-                     alignment: Alignment.centerLeft, 
-                     child: _activeBottomCategory != null
-                         ? _buildInlineImageStrip(_activeBottomCategory!, stripType: _StripType.bottom) 
-                         : const SizedBox.shrink(),
+                // Tab 1: Tops
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0, // Align with top
+                  // Hide in Singles Mode
+                  right: _isSinglesMode ? -100 : _getTabPosition('wtop', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openTopCategory = _openTopCategory == 'wtop' ? null : 'wtop'),
+                    child: Container(
+                       width: 28, height: 60, // Match Drawer Height (60)
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         // Transparent Gray always
+                         color: Colors.grey.shade900.withOpacity(0.6), 
+                         borderRadius: BorderRadius.circular(8), 
+                         boxShadow: [
+                           if (_openTopCategory == 'wtop') // Glow when open
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openTopCategory == 'wtop' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1, // Fixed 1px width
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Tops", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openTopCategory == 'wtop' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-          // Action Bar for Singles Selection (Visible only in Singles Mode)
-          if (_isSinglesMode)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
-              child: SizedBox(
-                height: 70, 
-                child: SlidingOptionsDrawer(
-                  isSmall: true,
-                  options: [
-                    DrawerOptionItem(label: "Dress", color: Colors.pink, onTap: () => setState(() => _activeSinglesCategory = 'Dress')),
-                    DrawerOptionItem(label: "Gowns", color: Colors.purple, onTap: () => setState(() => _activeSinglesCategory = 'Gowns')),
-                    DrawerOptionItem(label: "Jumpsuits", color: Colors.indigo, onTap: () => setState(() => _activeSinglesCategory = 'Jumpsuits')),
-                  ],
-                  child: Align(
-                     alignment: Alignment.centerLeft, 
-                     child: _activeSinglesCategory != null
-                         ? _buildInlineImageStrip(_activeSinglesCategory!, stripType: _StripType.singles) 
-                         : const SizedBox.shrink(),
+                // Tab 2: Jacket
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0, // Align with top
+                  // Always visible (or adjusted position if it's the only one?)
+                  // If it's the only one, maybe move it to the top position or keep it?
+                  // Let's keep it in its slot for now, or move it to be the first one.
+                  right: _isSinglesMode 
+                      ? _getTabPosition('wtop', MediaQuery.of(context).size.width) // Take 'Tops' position (first slot)
+                      : _getTabPosition('jacket', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openTopCategory = _openTopCategory == 'jacket' ? null : 'jacket'),
+                    child: Container(
+                       width: 28, height: 60, // Match Drawer Height (60)
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade900.withOpacity(0.6),
+                         borderRadius: BorderRadius.circular(8),
+                         boxShadow: [
+                           if (_openTopCategory == 'jacket')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openTopCategory == 'jacket' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Jacket", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openTopCategory == 'jacket' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
                   ),
                 ),
-              ),
+
+                // Tab 3: Shirt
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0, // Align with top
+                  // Hide in Singles Mode
+                  right: _isSinglesMode ? -100 : _getTabPosition('shirt', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openTopCategory = _openTopCategory == 'shirt' ? null : 'shirt'),
+                    child: Container(
+                       width: 28, height: 60, // Match Drawer Height (60)
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade900.withOpacity(0.6),
+                         borderRadius: const BorderRadius.only(topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)), 
+                         boxShadow: [
+                           if (_openTopCategory == 'shirt')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openTopCategory == 'shirt' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Shirt", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openTopCategory == 'shirt' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
           
-          const SizedBox(height: 12), // Gap
+          const SizedBox(height: 12), // Added Gap between drawers
 
+          // Bottom Drawer (Replaces Image Strip)
+          SizedBox(
+            height: 60,
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.centerRight,
+              children: [
+                // Bottom Drawer Panel Content
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  bottom: 0,
+                  width: MediaQuery.of(context).size.width,
+                  right: (_openBottomCategory == 'skirt' || _openBottomCategory == 'wbottom') ? 0 : -(MediaQuery.of(context).size.width - 28),
+                  child: Container(
+                    padding: const EdgeInsets.only(left: 32, right: 0), 
+                    color: Colors.grey.shade900.withOpacity(0.85),
+                    child: imagesAsync.when(
+                      data: (images) {
+                        // Filter based on selected tab or defaults
+                        String filter = 'wbottom'; // Default to pants
+                        if (_openBottomCategory == 'skirt') filter = 'skirt';
+                        // In Singles Mode, we might want Bodycon? User asked for Skirt/Bottoms specifically.
+                        // Assuming this drawer is for standard mismatch mode.
+                        
+                        final filtered = images.where((path) => path.toLowerCase().contains(filter) || (filter == 'wbottom' && path.contains('pants'))).toList();
+                        
+                        if (filtered.isEmpty && (_openBottomCategory == 'skirt' || _openBottomCategory == 'wbottom')) return Center(child: Text("No ${filter}s found"));
+                        if (!(_openBottomCategory == 'skirt' || _openBottomCategory == 'wbottom')) return const SizedBox.shrink();
+
+                        return ListView.builder(
+                          controller: _bottomThumbController,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.only(right: 60),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final path = filtered[index];
+                            final isSelected = _selectedBottom == path;
+                            return GestureDetector(
+                              onTap: () => setState(() { 
+                                _selectedBottom = path;
+                                _analysisResult = null; 
+                              }),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 60,
+                                margin: const EdgeInsets.only(right: 4), // Reduced Gap
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: isSelected ? Colors.purpleAccent : Colors.transparent, width: 2),
+                                  boxShadow: isSelected ? [BoxShadow(color: Colors.purpleAccent.withOpacity(0.6), blurRadius: 8)] : [],
+                                ),
+                                child: ClipRRect(borderRadius: BorderRadius.circular(7), child: Image.asset(path, fit: BoxFit.cover)),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                       loading: () => const Center(child: CircularProgressIndicator()),
+                       error: (_, __) => const SizedBox(),
+                    ),
+                  ),
+                ),
+
+                // Tab 1: Skirt
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  right: _isSinglesMode ? -100 : _getBottomTabPosition('skirt', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openBottomCategory = _openBottomCategory == 'skirt' ? null : 'skirt'),
+                    child: Container(
+                       width: 28, height: 60,
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade900.withOpacity(0.6),
+                         borderRadius: BorderRadius.circular(8), 
+                         boxShadow: [
+                           if (_openBottomCategory == 'skirt')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openBottomCategory == 'skirt' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Skirt", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openBottomCategory == 'skirt' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
+                  ),
+                ),
+
+                // Tab 2: Bottoms
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  top: 0,
+                  right: _isSinglesMode ? -100 : _getBottomTabPosition('wbottom', MediaQuery.of(context).size.width),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _openBottomCategory = _openBottomCategory == 'wbottom' ? null : 'wbottom'),
+                    child: Container(
+                       width: 28, height: 60,
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(
+                         color: Colors.grey.shade900.withOpacity(0.6), 
+                         borderRadius: const BorderRadius.only(topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)), 
+                         boxShadow: [
+                           if (_openBottomCategory == 'wbottom')
+                             BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8, spreadRadius: 1)
+                           else
+                             BoxShadow(color: Colors.black12, blurRadius: 4, offset:const Offset(-2, 0))
+                         ],
+                         border: Border.all(
+                           color: _openBottomCategory == 'wbottom' ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+                           width: 1,
+                         ),
+                       ),
+                       child: RotatedBox(quarterTurns: 3, child: Text("Bottoms", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: _openBottomCategory == 'wbottom' ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white70))),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), // Bottom padding for tab bar clearance
             child: Row(
@@ -588,119 +817,6 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
     ),
    );
  }
-
-
-
-  Widget _buildInlineImageStrip(String category, {required _StripType stripType}) {
-    final imagesAsync = ref.watch(wardrobeImagesProvider);
-    
-    return Row(
-      children: [
-        // Horizontal Image List
-        Expanded(
-          child: imagesAsync.when(
-            data: (images) {
-              // Filter Logic
-              String filterKey = category.toLowerCase();
-              if (stripType == _StripType.top) {
-                  // Top Categories
-                  if (filterKey == 'tops') filterKey = 'wtop';
-                  if (filterKey == 'layers') filterKey = 'jacket';
-              } else if (stripType == _StripType.bottom) {
-                  // Bottom Categories
-                  if (filterKey == 'trousers') filterKey = 'pants';
-                  if (filterKey == 'skirts') filterKey = 'skirt';
-                  // 'jeans', 'shorts', 'ethnic', 'active' match directly
-              } else {
-                  // Singles Categories
-                   if (filterKey == 'jumpsuits') filterKey = 'suit'; // or 'jump'?
-                   // 'dress', 'gowns' -> 'gown'?
-                   if (filterKey == 'gowns') filterKey = 'gown';
-              }
-              
-              final filtered = images.where((path) => path.toLowerCase().contains(filterKey)).toList();
-              
-              if (filtered.isEmpty) return const Text("No items", style: TextStyle(color: Colors.white54, fontSize: 10));
-              
-              return ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(right: 40), // Pad right for drawer handle!
-                physics: const BouncingScrollPhysics(),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final path = filtered[index];
-                  // Check if selected
-                  bool isSelected = false;
-                  if (stripType == _StripType.bottom) isSelected = _selectedBottom == path;
-                  else isSelected = _selectedTops.contains(path);
-
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        if (stripType == _StripType.bottom) {
-                             _selectedBottom = path;
-                        } else {
-                          // Tops or Singles
-                          if (_selectedTops.isNotEmpty) {
-                             _selectedTops[0] = path;
-                          } else {
-                             _selectedTops.add(path);
-                          }
-                          
-                          if (stripType == _StripType.singles) {
-                              _isSinglesMode = true; // Activating single usually implies singles mode
-                              _selectedBottom = null; // Clear bottom? Optional.
-                          }
-                        }
-                        _analysisResult = null;
-                      });
-                    },
-
-                    child: Container(
-                      width: 55, // Increased width
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: isSelected ? Colors.cyanAccent : Colors.white24, width: isSelected ? 2 : 1),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(5),
-                        // Using Alignment.topCenter often helps with clothing (showing neckline/shoulders)
-                        child: Image.asset(path, fit: BoxFit.cover, alignment: Alignment.topCenter),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-            loading: () => const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
-            error: (_,__) => const SizedBox(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDrawerOption(String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        color: color,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: RotatedBox(
-          quarterTurns: 3, // Vertical 270 degrees
-          child: Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11), // Slightly larger font
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.visible, // Allow it to perform layout naturally
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildHistoryIcon() {
     return IconButton(
@@ -796,8 +912,6 @@ class _SelectionCard extends StatelessWidget {
   final String? imagePath;
   final String? message;
   final VoidCallback onTap;
-  final VoidCallback? onDelete; // Added
-  final VoidCallback? onShare;  // Added
   final Widget? overlay;
 
   const _SelectionCard({
@@ -805,8 +919,6 @@ class _SelectionCard extends StatelessWidget {
     required this.imagePath,
     this.message,
     required this.onTap,
-    this.onDelete, // Modified
-    this.onShare,  // Modified
     this.overlay,
   });
 

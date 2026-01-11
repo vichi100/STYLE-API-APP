@@ -613,10 +613,16 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
 
 
     // Compute Categories
+    // Compute Categories (Case Insensitive -> Title Case)
     final Set<String> categories = {'All'};
+    String toTitleCase(String text) {
+      if (text.isEmpty) return text;
+      return text[0].toUpperCase() + text.substring(1).toLowerCase();
+    }
+
     for (final item in _serverImages) {
        if (item['general_category'] != null) {
-          categories.add(item['general_category'].toString());
+          categories.add(toTitleCase(item['general_category'].toString()));
        }
     }
     final sortedCategories = categories.toList()..sort((a, b) {
@@ -630,7 +636,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
         ? allImages 
         : allImages.where((item) {
             if (item is Map) {
-               return item['general_category'] == _selectedCategory;
+               final itemCat = item['general_category']?.toString() ?? '';
+               return toTitleCase(itemCat) == _selectedCategory;
             }
             return false; 
           }).toList();
@@ -976,6 +983,10 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   }
 }
 
+// Global Cache & Client for Performance
+final Map<String, Uint8List> _globalImageCache = {};
+final Dio _imageDio = Dio();
+
 class DioNetworkImage extends StatefulWidget {
   final String imageUrl;
   final BoxFit fit;
@@ -988,19 +999,44 @@ class DioNetworkImage extends StatefulWidget {
 }
 
 class _DioNetworkImageState extends State<DioNetworkImage> {
-  late Future<Response> _imageFuture; // Removed strict generic
+  late Future<Uint8List> _imageFuture; // Changed to Uint8List for cleaner caching
 
   @override
   void initState() {
     super.initState();
-    debugPrint("DIO_INIT: Requesting ${widget.imageUrl}");
-    _imageFuture = Dio().get(
-      widget.imageUrl, 
-      options: Options(
-        responseType: ResponseType.bytes,
-        receiveTimeout: const Duration(seconds: 10),
-      ),
-    );
+    _loadImage();
+  }
+
+  void _loadImage() {
+    if (_globalImageCache.containsKey(widget.imageUrl)) {
+       // Cache Hit
+       _imageFuture = Future.value(_globalImageCache[widget.imageUrl]);
+    } else {
+       // Cache Miss - Fetch
+       debugPrint("DIO_FETCH: ${widget.imageUrl}");
+       _imageFuture = _imageDio.get(
+        widget.imageUrl, 
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 20),
+        ),
+      ).then((response) {
+         final data = response.data;
+         List<int> bytes;
+         if (data is List<int>) {
+           bytes = data;
+         } else if (data is List) {
+           bytes = data.cast<int>();
+         } else {
+           throw Exception("Invalid data type");
+         }
+         final uint8List = Uint8List.fromList(bytes);
+         
+         // Save to Cache
+         _globalImageCache[widget.imageUrl] = uint8List;
+         return uint8List;
+      });
+    }
   }
 
   @override
@@ -1008,50 +1044,30 @@ class _DioNetworkImageState extends State<DioNetworkImage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imageUrl != widget.imageUrl) {
       debugPrint("DIO_UPDATE: Url changed to ${widget.imageUrl}");
-       _imageFuture = Dio().get(
-        widget.imageUrl, 
-        options: Options(
-          responseType: ResponseType.bytes,
-          receiveTimeout: const Duration(seconds: 10),
-        ),
-      );
+      setState(() {
+        _loadImage();
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Response>( // Removed strict generic
+    return FutureBuilder<Uint8List>( 
       future: _imageFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
            return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueAccent));
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data?.data == null) {
-           debugPrint("DIO_ERROR [${widget.imageUrl}]: ${snapshot.error}");
+        if (snapshot.hasError || !snapshot.hasData) {
+           // debugPrint("DIO_ERROR [${widget.imageUrl}]: ${snapshot.error}");
            if (widget.errorBuilder != null) return widget.errorBuilder!(context, snapshot.error ?? "Unknown Error");
            return const Icon(Icons.error, color: Colors.red);
         }
         
-        try {
-          final data = snapshot.data!.data;
-          // Robust casting to Uint8List
-          List<int> bytes;
-          if (data is List<int>) {
-            bytes = data;
-          } else if (data is List) {
-            bytes = data.cast<int>();
-          } else {
-            throw Exception("Invalid data type: ${data.runtimeType}");
-          }
-          
-          return Image.memory(
-             Uint8List.fromList(bytes),
-             fit: widget.fit,
-          );
-        } catch (e) {
-          debugPrint("DIO_PARSE_ERROR: $e");
-          return const Icon(Icons.broken_image, color: Colors.orange);
-        }
+        return Image.memory(
+           snapshot.data!,
+           fit: widget.fit,
+        );
       },
     );
   }
