@@ -772,6 +772,12 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
       if (key.contains('active')) return Colors.teal;
       if (key.contains('ethnic')) return Colors.purpleAccent;
       if (key.contains('dress')) return Colors.pink;
+      if (key.contains('jean')) return Colors.blueGrey;
+      if (key.contains('trouser') || key.contains('pant')) return Colors.brown;
+      if (key.contains('skirt')) return Colors.pinkAccent;
+      if (key.contains('short')) return Colors.orange;
+      if (key.contains('gown')) return Colors.purple;
+      if (key.contains('jump') || key.contains('suit')) return Colors.indigo;
       // Default
       return Colors.grey; 
   }
