@@ -476,6 +476,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
                     return SlidingOptionsDrawer(
                       isSmall: true,
+                      optionsBackgroundColor: const Color(0xFF212121), // Dark Theme
                       options: topCategories.map((cat) => 
                         DrawerOptionItem(
                           label: cat, 
@@ -529,6 +530,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
                     return SlidingOptionsDrawer(
                       isSmall: true,
+                      optionsBackgroundColor: const Color(0xFF212121), // Dark Theme
                       options: bottomCategories.map((cat) => 
                         DrawerOptionItem(
                           label: cat, 
@@ -574,6 +576,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
                     return SlidingOptionsDrawer(
                       isSmall: true,
+                      optionsBackgroundColor: const Color(0xFF212121), // Dark Grey/Black for Uniform Background
                       options: singlesCategories.map((cat) => 
                         DrawerOptionItem(
                           label: cat, 
@@ -621,6 +624,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
                     return SlidingOptionsDrawer(
                       isSmall: true,
+                      optionsBackgroundColor: const Color(0xFF212121), // Dark Grey/Black for Uniform Background
                       options: footwearCategories.map((cat) => 
                         DrawerOptionItem(
                           label: cat, 
@@ -800,23 +804,44 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   // Helper for dynamic colors
   Color _getColorForCategory(String category) {
       final key = category.toLowerCase();
+      
+      // Tops (Vibrant for Dark Theme)
       if (key.contains('top')) return Colors.redAccent;
-      if (key.contains('shirt')) return Colors.blue;
-      if (key.contains('layer') || key.contains('jacket')) return Colors.amber;
-      if (key.contains('active')) return Colors.teal;
+      if (key.contains('shirt')) return Colors.lightBlueAccent; // Vibrant Blue
+      if (key.contains('layer') || key.contains('jacket')) return Colors.yellowAccent; // Vibrant Yellow
+      if (key.contains('active')) return Colors.tealAccent; // Vibrant Teal
       if (key.contains('ethnic')) return Colors.purpleAccent;
-      if (key.contains('dress')) return Colors.pink;
-      if (key.contains('jean')) return Colors.blueGrey;
-      if (key.contains('trouser') || key.contains('pant')) return Colors.brown;
+      
+      // Singles (Vibrant for Dark Theme)
+      if (key.contains('dress')) return Colors.pinkAccent; 
+      if (key.contains('gown')) return Colors.cyanAccent;
+      if (key.contains('jump') || key.contains('suit')) return Colors.amberAccent;
+      if (key.contains('one')) return Colors.lightGreenAccent;
+
+      // Bottoms (Vibrant for Dark Theme)
+      if (key.contains('jean')) return Colors.lightBlueAccent; // Vibrant Blue/Grey
+      if (key.contains('trouser') || key.contains('pant')) return Colors.amber; // Brown is too dark, use Amber/Orange
       if (key.contains('skirt')) return Colors.pinkAccent;
-      if (key.contains('short')) return Colors.orange;
-      if (key.contains('gown')) return Colors.purple;
-      if (key.contains('jump') || key.contains('suit')) return Colors.indigo;
+      if (key.contains('short')) return Colors.deepOrangeAccent;
+      
+      // Footwear (Vibrant Text Colors for Dark Theme)
+      if (key.contains('heel') || key.contains('pump') || key.contains('stiletto')) return Colors.pinkAccent; 
+      if (key.contains('boot')) return Colors.orangeAccent;
+      if (key.contains('sneaker') || key.contains('shoe')) return Colors.limeAccent;
+      if (key.contains('sandal') || key.contains('flat')) return Colors.cyanAccent;
+      
       // Default
-      return Colors.grey; 
+      return Colors.grey.shade400; 
   }
 
   Widget _buildDrawerOption(String label, Color color, VoidCallback onTap) {
+    // Determine text color based on background luminance
+    // If background is very dark, use Amber/Gold for premium look, otherwise White.
+    Color textColor = Colors.white;
+    if (color.computeLuminance() < 0.15) { // < 0.15 essentially catches Black and very deep shades
+       textColor = Colors.amberAccent; 
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -827,10 +852,10 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
           quarterTurns: 3, // Vertical 270 degrees
           child: Text(
             label,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11), // Slightly larger font
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 11), // Dynamic text color
             textAlign: TextAlign.center,
             maxLines: 1,
-            overflow: TextOverflow.visible, // Allow it to perform layout naturally
+            overflow: TextOverflow.visible, 
           ),
         ),
       ),

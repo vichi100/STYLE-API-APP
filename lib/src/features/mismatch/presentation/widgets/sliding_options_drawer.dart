@@ -16,12 +16,14 @@ class SlidingOptionsDrawer extends StatefulWidget {
   final Widget child;
   final List<DrawerOptionItem> options; 
   final bool isSmall;
+  final Color? optionsBackgroundColor; // New param
 
   const SlidingOptionsDrawer({
     super.key,
     required this.child,
     required this.options,
     this.isSmall = false,
+    this.optionsBackgroundColor,
   });
 
   @override
@@ -29,6 +31,7 @@ class SlidingOptionsDrawer extends StatefulWidget {
 }
 
 class _SlidingOptionsDrawerState extends State<SlidingOptionsDrawer> {
+  // ... (keep state logic same)
   bool _isOpen = false;
 
   void _toggleDrawer() {
@@ -41,7 +44,7 @@ class _SlidingOptionsDrawerState extends State<SlidingOptionsDrawer> {
   Widget build(BuildContext context) {
     // Sizing Logic
     final double handleWidth = widget.isSmall ? 24.0 : 40.0;
-    final double buttonWidth = widget.isSmall ? 35.0 : 50.0; // Slimmer buttons (was 50/70)
+    final double buttonWidth = widget.isSmall ? 35.0 : 50.0; 
     final double iconSize = widget.isSmall ? 20.0 : 30.0;
     
     final double drawerContentWidth = buttonWidth * widget.options.length; 
@@ -59,18 +62,18 @@ class _SlidingOptionsDrawerState extends State<SlidingOptionsDrawer> {
           curve: Curves.easeInOut,
           top: 0,
           bottom: 0,
-          right: _isOpen ? 0 : -(drawerContentWidth), // Hide content, keep handle
+          right: _isOpen ? 0 : -(drawerContentWidth), 
           width: totalDrawerWidth,
           child: Row(
             children: [
-              // Handle (Back Arrow Strip)
+              // Handle
               GestureDetector(
                 onTap: _toggleDrawer,
                 behavior: HitTestBehavior.opaque,
                 child: Container(
                   width: handleWidth,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF374151), // Dark Slate Grey
+                    color: const Color(0xFF374151), 
                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(0)), 
                   ),
                   alignment: Alignment.center,
@@ -87,21 +90,32 @@ class _SlidingOptionsDrawerState extends State<SlidingOptionsDrawer> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: widget.options.map((item) {
+                    // Logic: If custom background is set, use it for bg and item.color for text.
+                    // Else, use item.color for bg and white/gold for text.
+                    final bgColor = widget.optionsBackgroundColor ?? item.color;
+                    final textColor = widget.optionsBackgroundColor != null 
+                        ? item.color 
+                        : (item.color.computeLuminance() < 0.15 ? Colors.amberAccent : Colors.white);
+
                     return Expanded(
                       child: GestureDetector(
                         onTap: () {
                           item.onTap();
-                          _toggleDrawer(); // Auto-close
+                          _toggleDrawer(); 
                         },
                         child: Container(
-                          color: item.color,
+                          color: bgColor,
                           alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: RotatedBox(
-                            quarterTurns: 3, // Vertical 270 degrees
+                            quarterTurns: 3, 
                             child: Text(
                               item.label,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                              style: TextStyle(
+                                  color: textColor, 
+                                  fontWeight: FontWeight.bold, 
+                                  fontSize: 11
+                              ),
                               textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.visible,
