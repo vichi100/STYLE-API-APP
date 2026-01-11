@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../../wardrobe/application/wardrobe_images_provider.dart';
+import '../../wardrobe/application/wardrobe_api_provider.dart';
+import '../../wardrobe/domain/wardrobe_item.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // Ensure this is available or use Image.network
 import 'widgets/horizontal_image_drawer.dart';
 import 'widgets/particle_overlay.dart';
 import 'widgets/stylized_category_button.dart';
@@ -235,7 +237,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
   @override
   Widget build(BuildContext context) {
-    final imagesAsync = ref.watch(wardrobeImagesProvider);
+    final imagesAsync = ref.watch(wardrobeApiProvider);
     final drawerWidth = 100.0; // Not used for logic, but kept var
 
     return Scaffold(
@@ -297,6 +299,8 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                           message: _selectedBottom == null ? 'Select Bodycon' : null,
                                           onTap: () => _showImagePicker(false),
                                           onDelete: () => setState(() => _selectedBottom = null),
+                                          // Add network image support in _SelectionCard or pass transparently if it handles URLs?
+                                          // Assuming _SelectionCard needs update for network images too.
                                         ),
                                       ),
                                     ),
@@ -465,8 +469,8 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                         ],
                       ),
                     ),
-                  ],
                 ],
+              ],
               ),
             ),
           ),
@@ -474,24 +478,44 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
           // Action Bar for Top Selection (Visible only when NOT in Singles Mode)
           if (!_isSinglesMode)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), // Right Padding 0 for flush drawer
+              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
               child: SizedBox(
-                height: 70, // Increased height for larger thumbnails
-                child: SlidingOptionsDrawer(
-                  isSmall: true,
-                  options: [
-                    DrawerOptionItem(label: "Tops", color: Colors.redAccent, onTap: () => setState(() => _activeTopCategory = 'Tops')),
-                    DrawerOptionItem(label: "Shirts", color: Colors.blue, onTap: () => setState(() => _activeTopCategory = 'Shirts')),
-                    DrawerOptionItem(label: "Layers", color: Colors.amber, onTap: () => setState(() => _activeTopCategory = 'Layers')),
-                    DrawerOptionItem(label: "Active", color: Colors.teal, onTap: () => setState(() => _activeTopCategory = 'Active')),
-                    DrawerOptionItem(label: "Ethnic", color: Colors.purpleAccent, onTap: () => setState(() => _activeTopCategory = 'Ethnic')),
-                  ],
-                  child: Align(
-                     alignment: Alignment.centerLeft, // Left align for strip
-                     child: _activeTopCategory != null 
-                         ? _buildInlineImageStrip(_activeTopCategory!, stripType: _StripType.top) 
-                         : const SizedBox.shrink(),
-                  ),
+                height: 70, 
+                child: imagesAsync.when(
+                  data: (items) {
+                    // Extract Dynamic Top Categories
+                    final topCategories = items
+                        .where((i) => i.generalCategory.toLowerCase() == 'top') // Filter by General Category "Top"
+                        .map((i) => i.customCategory)
+                        .toSet()
+                        .toList();
+                    
+                    // Allow Fallback if API hasn't populated or connection failed?
+                    // For now, if empty, maybe show "Tops" as generic?
+                    if (topCategories.isEmpty) topCategories.add('Tops');
+
+                    // Sort alphabetical
+                    topCategories.sort();
+
+                    return SlidingOptionsDrawer(
+                      isSmall: true,
+                      options: topCategories.map((cat) => 
+                        DrawerOptionItem(
+                          label: cat, 
+                          color: _getColorForCategory(cat), // Need helper for colors?
+                          onTap: () => setState(() => _activeTopCategory = cat)
+                        )
+                      ).toList(),
+                      child: Align(
+                         alignment: Alignment.centerLeft, 
+                         child: _activeTopCategory != null 
+                             ? _buildInlineImageStrip(_activeTopCategory!, stripType: _StripType.top) 
+                             : const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, s) => const Center(child: Text("Error loading options")),
                 ),
               ),
             ),
@@ -505,22 +529,46 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
               padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
               child: SizedBox(
                 height: 70, 
-                child: SlidingOptionsDrawer(
-                  isSmall: true,
-                  options: [
-                    DrawerOptionItem(label: "Jeans", color: Colors.blueGrey, onTap: () => setState(() => _activeBottomCategory = 'Jeans')),
-                    DrawerOptionItem(label: "Trousers", color: Colors.brown, onTap: () => setState(() => _activeBottomCategory = 'Trousers')),
-                    DrawerOptionItem(label: "Skirts", color: Colors.pinkAccent, onTap: () => setState(() => _activeBottomCategory = 'Skirts')),
-                    DrawerOptionItem(label: "Shorts", color: Colors.orange, onTap: () => setState(() => _activeBottomCategory = 'Shorts')),
-                    DrawerOptionItem(label: "Ethnic", color: Colors.purple, onTap: () => setState(() => _activeBottomCategory = 'Ethnic')),
-                    DrawerOptionItem(label: "Active", color: Colors.teal, onTap: () => setState(() => _activeBottomCategory = 'Active')),
-                  ],
-                  child: Align(
-                     alignment: Alignment.centerLeft, 
-                     child: _activeBottomCategory != null
-                         ? _buildInlineImageStrip(_activeBottomCategory!, stripType: _StripType.bottom) 
-                         : const SizedBox.shrink(),
-                  ),
+                child: imagesAsync.when(
+                  data: (items) {
+                    final bottomCategories = items
+                        .where((i) {
+                           final g = i.generalCategory.toLowerCase();
+                           return g == 'bottom' || g.contains('pant') || g.contains('skirt') || g.contains('short');
+                        })
+                        .map((i) => i.customCategory)
+                        .toSet()
+                        .toList();
+                    
+                    if (bottomCategories.isEmpty) {
+                       // Fallbacks just in case API data isn't tagged cleanly yet
+                       bottomCategories.addAll(['Jeans', 'Trousers', 'Skirts', 'Shorts']);
+                    } else {
+                       // Ensure basics are there if we want mixed mode? 
+                       // Or trust API 100%. User said "based on items custom_category". 
+                       // So we trust API. If list is non-empty, use it.
+                    }
+                    bottomCategories.sort();
+
+                    return SlidingOptionsDrawer(
+                      isSmall: true,
+                      options: bottomCategories.map((cat) => 
+                        DrawerOptionItem(
+                          label: cat, 
+                          color: _getColorForCategory(cat), 
+                          onTap: () => setState(() => _activeBottomCategory = cat)
+                        )
+                      ).toList(),
+                      child: Align(
+                         alignment: Alignment.centerLeft, 
+                         child: _activeBottomCategory != null
+                             ? _buildInlineImageStrip(_activeBottomCategory!, stripType: _StripType.bottom) 
+                             : const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, s) => const Center(child: Text("Error")),
                 ),
               ),
             ),
@@ -531,19 +579,41 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
               padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
               child: SizedBox(
                 height: 70, 
-                child: SlidingOptionsDrawer(
-                  isSmall: true,
-                  options: [
-                    DrawerOptionItem(label: "Dress", color: Colors.pink, onTap: () => setState(() => _activeSinglesCategory = 'Dress')),
-                    DrawerOptionItem(label: "Gowns", color: Colors.purple, onTap: () => setState(() => _activeSinglesCategory = 'Gowns')),
-                    DrawerOptionItem(label: "Jumpsuits", color: Colors.indigo, onTap: () => setState(() => _activeSinglesCategory = 'Jumpsuits')),
-                  ],
-                  child: Align(
-                     alignment: Alignment.centerLeft, 
-                     child: _activeSinglesCategory != null
-                         ? _buildInlineImageStrip(_activeSinglesCategory!, stripType: _StripType.singles) 
-                         : const SizedBox.shrink(),
-                  ),
+                child: imagesAsync.when(
+                  data: (items) {
+                    final singlesCategories = items
+                        .where((i) {
+                           final g = i.generalCategory.toLowerCase();
+                           return g.contains('dress') || g.contains('gown') || g.contains('suit') || g.contains('jump') || g.contains('one');
+                        })
+                        .map((i) => i.customCategory)
+                        .toSet()
+                        .toList();
+                    
+                    if (singlesCategories.isEmpty) {
+                       singlesCategories.addAll(['Dress', 'Gowns', 'Jumpsuits']);
+                    }
+                    singlesCategories.sort();
+
+                    return SlidingOptionsDrawer(
+                      isSmall: true,
+                      options: singlesCategories.map((cat) => 
+                        DrawerOptionItem(
+                          label: cat, 
+                          color: _getColorForCategory(cat), 
+                          onTap: () => setState(() => _activeSinglesCategory = cat)
+                        )
+                      ).toList(),
+                      child: Align(
+                         alignment: Alignment.centerLeft, 
+                         child: _activeSinglesCategory != null
+                             ? _buildInlineImageStrip(_activeSinglesCategory!, stripType: _StripType.singles) 
+                             : const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, s) => const Center(child: Text("Error")),
                 ),
               ),
             ),
@@ -592,34 +662,40 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
 
   Widget _buildInlineImageStrip(String category, {required _StripType stripType}) {
-    final imagesAsync = ref.watch(wardrobeImagesProvider);
+    final imagesAsync = ref.watch(wardrobeApiProvider);
     
     return Row(
       children: [
         // Horizontal Image List
         Expanded(
           child: imagesAsync.when(
-            data: (images) {
-              // Filter Logic
-              String filterKey = category.toLowerCase();
-              if (stripType == _StripType.top) {
-                  // Top Categories
-                  if (filterKey == 'tops') filterKey = 'wtop';
-                  if (filterKey == 'layers') filterKey = 'jacket';
-              } else if (stripType == _StripType.bottom) {
-                  // Bottom Categories
-                  if (filterKey == 'trousers') filterKey = 'pants';
-                  if (filterKey == 'skirts') filterKey = 'skirt';
-                  // 'jeans', 'shorts', 'ethnic', 'active' match directly
-              } else {
-                  // Singles Categories
-                   if (filterKey == 'jumpsuits') filterKey = 'suit'; // or 'jump'?
-                   // 'dress', 'gowns' -> 'gown'?
-                   if (filterKey == 'gowns') filterKey = 'gown';
-              }
-              
-              final filtered = images.where((path) => path.toLowerCase().contains(filterKey)).toList();
-              
+            data: (items) {
+               // Filter Logic for API Items
+               // We filter by 'customCategory' matching the selected category label
+               // AND ensure it matches the general type (Top/Bottom) to avoid category name collisions if any
+               
+               final filtered = items.where((item) {
+                 // Check category match
+                 bool catMatch = item.customCategory.toLowerCase() == category.toLowerCase();
+                 
+                 // Check Type Match
+                 if (stripType == _StripType.top) {
+                    return catMatch && item.generalCategory.toLowerCase() == 'top'; // or 'Top'?
+                 } else if (stripType == _StripType.bottom) {
+                     // Bottom Categories: Match custom category AND ensure general category is valid
+                     final g = item.generalCategory.toLowerCase();
+                     final isBottom = g == 'bottom' || g.contains('pant') || g.contains('skirt') || g.contains('short');
+                     return catMatch && isBottom;
+                 } else {
+                     // Singles: Match custom category AND ensure general category is valid
+                     final g = item.generalCategory.toLowerCase();
+                     final isSingle = g.contains('dress') || g.contains('gown') || g.contains('suit') || g.contains('jump') || g.contains('one');
+                     return catMatch && isSingle;
+                 }
+
+               }).toList();
+
+
               if (filtered.isEmpty) return const Text("No items", style: TextStyle(color: Colors.white54, fontSize: 10));
               
               return ListView.builder(
@@ -628,7 +704,9 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                 physics: const BouncingScrollPhysics(),
                 itemCount: filtered.length,
                 itemBuilder: (context, index) {
-                  final path = filtered[index];
+                  final item = filtered[index];
+                  final path = item.imageUrl;
+                  
                   // Check if selected
                   bool isSelected = false;
                   if (stripType == _StripType.bottom) isSelected = _selectedBottom == path;
@@ -648,8 +726,8 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                           }
                           
                           if (stripType == _StripType.singles) {
-                              _isSinglesMode = true; // Activating single usually implies singles mode
-                              _selectedBottom = null; // Clear bottom? Optional.
+                              _isSinglesMode = true; 
+                              _selectedBottom = null; 
                           }
                         }
                         _analysisResult = null;
@@ -665,8 +743,12 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(5),
-                        // Using Alignment.topCenter often helps with clothing (showing neckline/shoulders)
-                        child: Image.asset(path, fit: BoxFit.cover, alignment: Alignment.topCenter),
+                        child: Image.network(
+                            path, 
+                            fit: BoxFit.cover, 
+                            alignment: Alignment.topCenter,
+                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24, size: 20),
+                        ),
                       ),
                     ),
                   );
@@ -679,6 +761,19 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
         ),
       ],
     );
+  }
+
+  // Helper for dynamic colors
+  Color _getColorForCategory(String category) {
+      final key = category.toLowerCase();
+      if (key.contains('top')) return Colors.redAccent;
+      if (key.contains('shirt')) return Colors.blue;
+      if (key.contains('layer') || key.contains('jacket')) return Colors.amber;
+      if (key.contains('active')) return Colors.teal;
+      if (key.contains('ethnic')) return Colors.purpleAccent;
+      if (key.contains('dress')) return Colors.pink;
+      // Default
+      return Colors.grey; 
   }
 
   Widget _buildDrawerOption(String label, Color color, VoidCallback onTap) {
@@ -828,7 +923,11 @@ class _SelectionCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: imagePath != null
-                    ? Image.asset(imagePath!, fit: BoxFit.cover)
+                    ? Image.network(
+                        imagePath!, 
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24, size: 40),
+                      )
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -842,7 +941,8 @@ class _SelectionCard extends StatelessWidget {
                         ],
                       ),
               ),
-            ),
+              ),
+
             if (overlay != null) overlay!,
           ],
         ),
@@ -859,7 +959,7 @@ class _ImagePickerSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final imagesAsync = ref.watch(wardrobeImagesProvider);
+    final imagesAsync = ref.watch(wardrobeApiProvider);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -870,10 +970,13 @@ class _ImagePickerSheet extends ConsumerWidget {
           const SizedBox(height: 16),
           Expanded(
             child: imagesAsync.when(
-              data: (images) {
-                final filtered = images.where((path) {
-                  if (isTop) return path.contains('wtop') || path.contains('top');
-                  return path.contains('wbottom') || path.contains('bottom') || path.contains('pants');
+              data: (items) {
+                final filtered = items.where((item) {
+                  // Basic filtering by general category logic from API items
+                  if (isTop) {
+                      return item.generalCategory.toLowerCase() == 'top';
+                  }
+                  return item.generalCategory.toLowerCase() == 'bottom' || item.generalCategory.toLowerCase().contains('pants');
                 }).toList();
 
                 if (filtered.isEmpty) {
@@ -888,12 +991,16 @@ class _ImagePickerSheet extends ConsumerWidget {
                   ),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final path = filtered[index];
+                    final item = filtered[index];
                     return GestureDetector(
-                      onTap: () => onSelect(path),
+                      onTap: () => onSelect(item.imageUrl),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(path, fit: BoxFit.cover),
+                        child: Image.network(
+                            item.imageUrl, 
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24),
+                        ),
                       ),
                     );
                   },

@@ -1,26 +1,27 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'app_router.dart';
+part of 'wardrobe_api_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$goRouterHash() => r'12f50dbbe931642622034f362ba8a4bbd7c4b0df';
+String _$wardrobeApiHash() => r'6ef7692d718f475d1c3e777880946d36757a5b99';
 
-/// See also [goRouter].
-@ProviderFor(goRouter)
-final goRouterProvider = AutoDisposeProvider<GoRouter>.internal(
-  goRouter,
-  name: r'goRouterProvider',
+/// See also [wardrobeApi].
+@ProviderFor(wardrobeApi)
+final wardrobeApiProvider =
+    AutoDisposeFutureProvider<List<WardrobeItem>>.internal(
+  wardrobeApi,
+  name: r'wardrobeApiProvider',
   debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$goRouterHash,
+      const bool.fromEnvironment('dart.vm.product') ? null : _$wardrobeApiHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef GoRouterRef = AutoDisposeProviderRef<GoRouter>;
+typedef WardrobeApiRef = AutoDisposeFutureProviderRef<List<WardrobeItem>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
