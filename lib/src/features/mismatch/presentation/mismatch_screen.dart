@@ -185,6 +185,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
     setState(() {
       if (category == 'Singles') {
         _isSinglesMode = true;
+        _activeSinglesCategory = 'One Piece'; // Default open (Interpreted "oomph" as "One Piece")
       } else if (category == 'Tops' || category == 'Bottoms') {
         _isSinglesMode = false;
       }
@@ -194,15 +195,18 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   void _showImagePicker(bool isTop, {int? topIndex}) {
     showModalBottomSheet(
       context: context,
+
       builder: (ctx) => _ImagePickerSheet(
         isTop: isTop,
+        isLayer: topIndex != null && topIndex > 0, // Pass true if it's a secondary top slot
         onSelect: (path) {
           setState(() {
             if (isTop) {
-               if (topIndex != null && topIndex < _selectedTops.length) {
-                 _selectedTops[topIndex] = path;
-               } else if (_selectedTops.isNotEmpty) {
-                 _selectedTops[0] = path;
+               // Directly use topIndex if provided, otherwise default to 0
+               final targetIndex = topIndex ?? 0;
+               
+               if (targetIndex < _selectedTops.length) {
+                  _selectedTops[targetIndex] = path;
                }
             } else {
               _selectedBottom = path;
@@ -277,7 +281,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                           imagePath: _selectedDress,
                                           message: _selectedDress == null ? 'Select Bodycon' : null,
                                           onTap: null, // No manual picker for now, use drawer
-                                          onDelete: () => setState(() => _selectedDress = null),
+                                          onDelete: null, // "One Piece" cannot be removed
                                           // Add network image support in _SelectionCard or pass transparently if it handles URLs?
                                           // Assuming _SelectionCard needs update for network images too.
                                         ),
@@ -292,7 +296,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                           imagePath: _selectedFootwear,
                                           message: _selectedFootwear == null ? 'Select Shoes' : null,
                                           onTap: () => _onCategorySelected('Footwear'), // Or create picker? Drawer is easier.
-                                          onDelete: () => setState(() => _selectedFootwear = null),
+                                          onDelete: null, // "Footwear" cannot be removed
                                         ),
                                       ),
                                     ),
@@ -300,6 +304,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                     // STANDARD MODE: Tops List + Add Button + Bottom Card
                                     ...List.generate(_selectedTops.length, (index) {
                                       return Padding(
+                                        key: ValueKey('top_$index'), // Force unique identity
                                         padding: const EdgeInsets.only(right: 16),
                                         child: SizedBox(
                                           width: cardWidth,
@@ -307,11 +312,12 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               _SelectionCard(
-                                                  title: 'Top ${index + 1}',
+                                                  title: index == 0 ? 'Top' : 'Layer',
                                                   imagePath: _selectedTops[index],
-                                                  message: _selectedTops[index] == null ? 'Select Top' : null,
+                                                  message: _selectedTops[index] == null ? (index == 0 ? 'Select Top' : 'Select Layer') : null,
                                                   onTap: () => _showImagePicker(true, topIndex: index),
-                                                  onDelete: _selectedTops.length > 1 ? () {
+
+                                                  onDelete: index > 0 ? () { // Only allow deleting layers (index > 0)
                                                     setState(() {
                                                       _selectedTops.removeAt(index);
                                                       _analysisResult = null;
@@ -338,7 +344,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                                         imagePath: _selectedBottom,
                                         message: _selectedBottom == null ? 'Select Bottom' : null,
                                         onTap: () => _showImagePicker(false),
-                                        onDelete: () => setState(() => _selectedBottom = null),
+                                        onDelete: null, // Bottom cannot be removed, only replaced
                                       ),
                                     ),
                                   ],
@@ -760,12 +766,28 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                           if (_isSinglesMode && stripType == _StripType.singles) {
                               _selectedDress = path; // Updated to use dedicated Dress variable
                           } else {
-                             // Tops
+                          // Tops
+                          // Smart Layering Logic:
+                          // If current item is a "Layer" type and we already have a Top (index 0), then ADD/UPDATE it as a Layer (index > 0).
+                          final c = item.customCategory.toLowerCase();
+                          final isLayerItem = c.contains('jacket') || c.contains('layer') || c.contains('coat') || c.contains('blazer') || c.contains('cardigan') || c.contains('shrug');
+                          
+                          if (isLayerItem && _selectedTops.isNotEmpty && _selectedTops[0] != null) {
+                              // We have a top, and this is a layer.
+                              // Check if we have a second slot?
+                              if (_selectedTops.length < 2) {
+                                  _selectedTops.add(path); // Add as new layer
+                              } else {
+                                  _selectedTops[1] = path; // Replace current layer (simplification)
+                              }
+                          } else {
+                              // Standard behavior: Replace Main Top
                               if (_selectedTops.isNotEmpty) {
                                   _selectedTops[0] = path;
                               } else {
                                   _selectedTops.add(path);
                               }
+                          }
                           }
                         }
                         _analysisResult = null;
@@ -1009,7 +1031,26 @@ class _SelectionCard extends StatelessWidget {
               ),
 
             if (overlay != null) overlay!,
-          ],
+
+            // Delete Button (Check if onDelete provided)
+            if (onDelete != null)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.remove, color: Colors.white, size: 16),
+                  ),
+                ),
+              ),
+
+          ], // Added missing closing bracket
         ),
       ),
     );
@@ -1018,9 +1059,10 @@ class _SelectionCard extends StatelessWidget {
 
 class _ImagePickerSheet extends ConsumerWidget {
   final bool isTop;
+  final bool isLayer; // New param
   final Function(String) onSelect;
 
-  const _ImagePickerSheet({required this.isTop, required this.onSelect});
+  const _ImagePickerSheet({required this.isTop, this.isLayer = false, required this.onSelect});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1039,6 +1081,11 @@ class _ImagePickerSheet extends ConsumerWidget {
                 final filtered = items.where((item) {
                   // Basic filtering by general category logic from API items
                   if (isTop) {
+                      // If it's a specific Layer slot, filter for jackets/layers
+                      if (isLayer) {
+                         final c = item.customCategory.toLowerCase();
+                         return c.contains('jacket') || c.contains('layer') || c.contains('coat') || c.contains('blazer') || c.contains('cardigan') || c.contains('shrug');
+                      }
                       return item.generalCategory.toLowerCase() == 'top';
                   }
                   return item.generalCategory.toLowerCase() == 'bottom' || item.generalCategory.toLowerCase().contains('pants');
