@@ -223,13 +223,23 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   }
 
   void _onCategorySelected(String category) {
-    debugPrint('Selecting category: $category'); // Debug log
+    debugPrint('Selecting category: $category'); 
     setState(() {
       if (category == 'Singles') {
         _isSinglesMode = true;
-        _activeSinglesCategory = 'One Piece'; // Default open (Interpreted "oomph" as "One Piece")
+        _activeSinglesCategory = 'Oomph'; // Auto-open "Oomph" drawer by default
       } else if (category == 'Tops' || category == 'Bottoms') {
         _isSinglesMode = false;
+        
+        // Ensure Tops are ALWAYS open by default when returning to Standard Mode
+        if (_activeTopCategory == null) _activeTopCategory = 'Top'; 
+        
+        // If specifically clicked Bottoms, ensure Bottoms are open (Jeans default)
+        if (category == 'Bottoms' && _activeBottomCategory == null) {
+           _activeBottomCategory = 'Jeans';
+        }
+      } else {
+         // Should we handle Footwear etc?
       }
     });
   }
@@ -599,7 +609,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                               .toList();
                           
                           if (singlesCategories.isEmpty) {
-                             singlesCategories.addAll(['Dress', 'Gowns', 'Jumpsuits']);
+                             singlesCategories.addAll(['Oomph', 'Dress', 'Gowns', 'Jumpsuits']);
                           }
                           singlesCategories.sort();
 
@@ -747,6 +757,9 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                      // Singles: Match custom category AND ensure general category is valid
                      final g = item.generalCategory.toLowerCase();
                      final isSingle = g.contains('dress') || g.contains('gown') || g.contains('suit') || g.contains('jump') || g.contains('one');
+                     
+                     if (category == 'Oomph') return isSingle; // 'Oomph' shows all single items
+                     
                      return catMatch && isSingle;
                  } else {
                      // Footwear
