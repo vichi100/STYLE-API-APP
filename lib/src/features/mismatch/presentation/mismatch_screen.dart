@@ -35,6 +35,9 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   late AnimationController _glowController;
   late AnimationController _mergeController;
   
+  // Mood Selection
+  String _selectedMood = 'Casual';
+  final List<String> _moods = ['Casual', 'Party', 'Date Lunch', 'Date Night', 'Office', 'Gym'];
   final ScrollController _thumbController = ScrollController();
   final ScrollController _bottomThumbController = ScrollController();
 
@@ -98,6 +101,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
     _glowController.repeat(reverse: true);
 
     // Simulate HTTP Request (Dummy 3 seconds)
+
     await Future.delayed(const Duration(seconds: 3));
     
     _glowController.stop();
@@ -107,6 +111,44 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
         _analysisResult = "Looking good! \nNo mismatch detected."; 
       });
     }
+  }
+
+  Widget _buildMoodSelector() {
+    // Helper to get Mood Data
+    (IconData, Color) getMoodData(String mood) {
+      switch (mood) {
+        case 'Casual': return (Icons.weekend_outlined, const Color(0xFF64B5F6));
+        case 'Party': return (Icons.celebration_outlined, const Color(0xFFFF1744));
+        case 'Date Lunch': return (Icons.restaurant_outlined, const Color(0xFFFFD54F));
+        case 'Date Night': return (Icons.local_bar_outlined, const Color(0xFFBA68C8));
+        case 'Office': return (Icons.business_center_outlined, const Color(0xFF81C784));
+        case 'Gym': return (Icons.fitness_center_outlined, const Color(0xFFE57373));
+        default: return (Icons.style, Colors.cyanAccent);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: _moods.map((mood) {
+              final isSelected = _selectedMood == mood;
+              final data = getMoodData(mood);
+              
+              return _BentoTile(
+                label: mood,
+                icon: data.$1,
+                color: data.$2,
+                isSelected: isSelected,
+                onTap: () => setState(() => _selectedMood = mood),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
   }
 
   void _showCategorySheet() {
@@ -221,149 +263,133 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
   @override
   Widget build(BuildContext context) {
     final imagesAsync = ref.watch(wardrobeApiProvider);
-    final drawerWidth = 100.0; // Not used for logic, but kept var
+    final drawerWidth = 100.0;
 
     return Scaffold(
-      /*
-      appBar: AppBar(
-        title: const Text('Mismatch Analysis'),
-      ),
-      */
-      /*
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showCategorySheet,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: const Icon(Icons.add, size: 28),
-      ),
-      */
       body: SafeArea(
         child: Stack(
-        children: [
-          Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  // Unified Scroll View Area
-                  // RESTORED: Selection Cards are always visible as per user request
-                  SizedBox(
-                    width: double.infinity, // Force full width to prevent growing with content
-                    height: 260, // Ensure height covers button area
-                    child: Stack(
-                      alignment: Alignment.center, // Center the image cards
-                      clipBehavior: Clip.none,
+          children: [
+            Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
                       children: [
-                        // Removed Positioned.fill to allow auto-centering/sizing
-                          SizedBox(
-                            height: 260,
-                        child: Builder(
-                          builder: (context) {
-                            final screenWidth = MediaQuery.of(context).size.width;
-                            final cardWidth = (screenWidth - 48) / 2.3;
+                        // Selection Cards Area
+                        SizedBox(
+                          width: double.infinity,
+                          height: 260,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            clipBehavior: Clip.none,
+                            children: [
+                                SizedBox(
+                                  height: 260,
+                                  child: Builder(
+                                    builder: (context) {
+                                      final screenWidth = MediaQuery.of(context).size.width;
+                                      final cardWidth = (screenWidth - 48) / 2.3;
 
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (_isSinglesMode) ...[
-                                    // SINGLES MODE: 2 Boxes (One Piece + Jacket)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 16),
-                                      child: SizedBox(
-                                        width: cardWidth,
-                                        child: _SelectionCard(
-                                          title: 'One Piece',
-                                          imagePath: _selectedDress,
-                                          message: _selectedDress == null ? 'Select Bodycon' : null,
-                                          onTap: null, // No manual picker for now, use drawer
-                                          onDelete: null, // "One Piece" cannot be removed
-                                          // Add network image support in _SelectionCard or pass transparently if it handles URLs?
-                                          // Assuming _SelectionCard needs update for network images too.
-                                        ),
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 16),
-                                      child: SizedBox(
-                                        width: cardWidth,
-                                        child: _SelectionCard(
-                                          title: 'Footwear',
-                                          imagePath: _selectedFootwear,
-                                          message: _selectedFootwear == null ? 'Select Shoes' : null,
-                                          onTap: () => _onCategorySelected('Footwear'), // Or create picker? Drawer is easier.
-                                          onDelete: null, // "Footwear" cannot be removed
-                                        ),
-                                      ),
-                                    ),
-                                  ] else ...[
-                                    // STANDARD MODE: Tops List + Add Button + Bottom Card
-                                    ...List.generate(_selectedTops.length, (index) {
-                                      return Padding(
-                                        key: ValueKey('top_$index'), // Force unique identity
-                                        padding: const EdgeInsets.only(right: 16),
-                                        child: SizedBox(
-                                          width: cardWidth,
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              _SelectionCard(
-                                                  title: index == 0 ? 'Top' : 'Layer',
-                                                  imagePath: _selectedTops[index],
-                                                  message: _selectedTops[index] == null ? (index == 0 ? 'Select Top' : 'Select Layer') : null,
-                                                  onTap: () => _showImagePicker(true, topIndex: index),
+                                      return SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (_isSinglesMode) ...[
+                                              // SINGLES MODE
+                                              Padding(
+                                                padding: const EdgeInsets.only(right: 16),
+                                                child: SizedBox(
+                                                  width: cardWidth,
+                                                  child: _SelectionCard(
+                                                    title: 'One Piece',
+                                                    imagePath: _selectedDress,
+                                                    message: _selectedDress == null ? 'Select Bodycon' : null,
+                                                    onTap: null, 
+                                                    onDelete: null,
+                                                  ),
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.only(right: 16),
+                                                child: SizedBox(
+                                                  width: cardWidth,
+                                                  child: _SelectionCard(
+                                                    title: 'Footwear',
+                                                    imagePath: _selectedFootwear,
+                                                    message: _selectedFootwear == null ? 'Select Shoes' : null,
+                                                    onTap: () => _onCategorySelected('Footwear'),
+                                                    onDelete: null,
+                                                  ),
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              // STANDARD MODE
+                                              ...List.generate(_selectedTops.length, (index) {
+                                                return Padding(
+                                                  key: ValueKey('top_$index'),
+                                                  padding: const EdgeInsets.only(right: 16),
+                                                  child: SizedBox(
+                                                    width: cardWidth,
+                                                    child: Column(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        _SelectionCard(
+                                                            title: index == 0 ? 'Top' : 'Layer',
+                                                            imagePath: _selectedTops[index],
+                                                            message: _selectedTops[index] == null ? (index == 0 ? 'Select Top' : 'Select Layer') : null,
+                                                            onTap: () => _showImagePicker(true, topIndex: index),
+                                                            onDelete: index > 0 ? () {
+                                                              setState(() {
+                                                                _selectedTops.removeAt(index);
+                                                                _analysisResult = null;
+                                                              });
+                                                            } : null,
+                                                          ),
+                                                        if (index == 0 && _selectedTops.length < 2)
+                                                          IconButton(
+                                                            onPressed: () => setState(() => _selectedTops.add(null)),
+                                                            icon: const Icon(Icons.add, size: 30),
+                                                            tooltip: "Add another Top",
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              }),
 
-                                                  onDelete: index > 0 ? () { // Only allow deleting layers (index > 0)
-                                                    setState(() {
-                                                      _selectedTops.removeAt(index);
-                                                      _analysisResult = null;
-                                                    });
-                                                  } : null,
+                                              // Bottom Card
+                                              SizedBox(
+                                                width: cardWidth,
+                                                child: _SelectionCard(
+                                                  title: 'Bottom',
+                                                  imagePath: _selectedBottom,
+                                                  message: _selectedBottom == null ? 'Select Bottom' : null,
+                                                  onTap: () => _showImagePicker(false),
+                                                  onDelete: null,
                                                 ),
-                                              if (index == 0 && _selectedTops.length < 2)
-                                                IconButton(
-                                                  onPressed: () => setState(() => _selectedTops.add(null)),
-                                                  icon: const Icon(Icons.add, size: 30),
-                                                  tooltip: "Add another Top",
-                                                ),
+                                              ),
                                             ],
-                                          ),
+                                          ],
                                         ),
                                       );
-                                    }),
-
-                                    // Bottom Card (Standard Mode Only)
-                                    SizedBox(
-                                      width: cardWidth,
-                                      child: _SelectionCard(
-                                        title: 'Bottom',
-                                        imagePath: _selectedBottom,
-                                        message: _selectedBottom == null ? 'Select Bottom' : null,
-                                        onTap: () => _showImagePicker(false),
-                                        onDelete: null, // Bottom cannot be removed, only replaced
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                                    },
+                                  ),
+                                ),
+                              Positioned(
+                                right: -11,
+                                top: 200,
+                                child: _buildHistoryIcon(),
                               ),
-                            );
-                          },
+                            ],
+                          ),
                         ),
-                      ),
-                    // Removed closing parenthesis for Positioned.fill
-                    Positioned(
-                      right: -11,
-                      top: 200,
-                      child: _buildHistoryIcon(),
-                    ),
-                  ],
-                ),
-              ),
-                  const SizedBox(height: 32),
+
+                        const SizedBox(height: 20),
+                        
+
+                  
                   AnimatedBuilder(
                     animation: _glowController,
                     builder: (context, child) {
@@ -425,6 +451,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                       );
                     },
                   ),
+                  
                   if (_analysisResult != null) ...[
                     const SizedBox(height: 32),
                     Container(
@@ -452,12 +479,17 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                         ],
                       ),
                     ),
+                  ],
                 ],
-              ],
               ),
             ),
           ),
           
+          // Mood Selector (Fixed above drawers)
+          const SizedBox(height: 8),
+          _buildMoodSelector(),
+          const SizedBox(height: 8),
+
           // Action Bar for Top Selection (Visible only when NOT in Singles Mode)
           if (!_isSinglesMode)
             Padding(
@@ -466,27 +498,22 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
                 height: 70, 
                 child: imagesAsync.when(
                   data: (items) {
-                    // Extract Dynamic Top Categories
                     final topCategories = items
-                        .where((i) => i.generalCategory.toLowerCase() == 'top') // Filter by General Category "Top"
+                        .where((i) => i.generalCategory.toLowerCase() == 'top')
                         .map((i) => i.customCategory)
                         .toSet()
                         .toList();
                     
-                    // Allow Fallback if API hasn't populated or connection failed?
-                    // For now, if empty, maybe show "Tops" as generic?
                     if (topCategories.isEmpty) topCategories.add('Tops');
-
-                    // Sort alphabetical
                     topCategories.sort();
 
                     return SlidingOptionsDrawer(
                       isSmall: true,
-                      optionsBackgroundColor: const Color(0xFF212121), // Dark Theme
+                      optionsBackgroundColor: const Color(0xFF212121),
                       options: topCategories.map((cat) => 
                         DrawerOptionItem(
                           label: cat, 
-                          color: _getColorForCategory(cat), // Need helper for colors?
+                          color: _getColorForCategory(cat), 
                           onTap: () => setState(() => _activeTopCategory = cat)
                         )
                       ).toList(),
@@ -504,194 +531,190 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
               ),
             ),
 
+          if (!_isSinglesMode) const SizedBox(height: 2),
 
-          if (!_isSinglesMode) const SizedBox(height: 2), // Gap
 
-         // Action Bar for Bottom Selection (Visible only when NOT in Singles Mode)
-          if (!_isSinglesMode)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
-              child: SizedBox(
-                height: 70, 
-                child: imagesAsync.when(
-                  data: (items) {
-                    final bottomCategories = items
-                        .where((i) {
-                           final g = i.generalCategory.toLowerCase();
-                           return g == 'bottom' || g.contains('pant') || g.contains('skirt') || g.contains('short');
-                        })
-                        .map((i) => i.customCategory)
-                        .toSet()
-                        .toList();
-                    
-                    if (bottomCategories.isEmpty) {
-                       // Fallbacks just in case API data isn't tagged cleanly yet
-                       bottomCategories.addAll(['Jeans', 'Trousers', 'Skirts', 'Shorts']);
-                    } else {
-                       // Ensure basics are there if we want mixed mode? 
-                       // Or trust API 100%. User said "based on items custom_category". 
-                       // So we trust API. If list is non-empty, use it.
-                    }
-                    bottomCategories.sort();
 
-                    return SlidingOptionsDrawer(
-                      isSmall: true,
-                      optionsBackgroundColor: const Color(0xFF212121), // Dark Theme
-                      options: bottomCategories.map((cat) => 
-                        DrawerOptionItem(
-                          label: cat, 
-                          color: _getColorForCategory(cat), 
-                          onTap: () => setState(() => _activeBottomCategory = cat)
-                        )
-                      ).toList(),
-                      child: Align(
-                         alignment: Alignment.centerLeft, 
-                         child: _activeBottomCategory != null
-                             ? _buildInlineImageStrip(_activeBottomCategory!, stripType: _StripType.bottom) 
-                             : const SizedBox.shrink(),
+               // Action Bar for Bottom Selection (Visible only when NOT in Singles Mode)
+                if (!_isSinglesMode)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
+                    child: SizedBox(
+                      height: 70, 
+                      child: imagesAsync.when(
+                        data: (items) {
+                          final bottomCategories = items
+                              .where((i) {
+                                 final g = i.generalCategory.toLowerCase();
+                                 return g == 'bottom' || g.contains('pant') || g.contains('skirt') || g.contains('short');
+                              })
+                              .map((i) => i.customCategory)
+                              .toSet()
+                              .toList();
+                          
+                          if (bottomCategories.isEmpty) {
+                             bottomCategories.addAll(['Jeans', 'Trousers', 'Skirts', 'Shorts']);
+                          }
+                          bottomCategories.sort();
+
+                          return SlidingOptionsDrawer(
+                            isSmall: true,
+                            optionsBackgroundColor: const Color(0xFF212121),
+                            options: bottomCategories.map((cat) => 
+                              DrawerOptionItem(
+                                label: cat, 
+                                color: _getColorForCategory(cat), 
+                                onTap: () => setState(() => _activeBottomCategory = cat)
+                              )
+                            ).toList(),
+                            child: Align(
+                               alignment: Alignment.centerLeft, 
+                               child: _activeBottomCategory != null
+                                   ? _buildInlineImageStrip(_activeBottomCategory!, stripType: _StripType.bottom) 
+                                   : const SizedBox.shrink(),
+                            ),
+                          );
+                        },
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (e, s) => const Center(child: Text("Error")),
                       ),
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, s) => const Center(child: Text("Error")),
-                ),
-              ),
-            ),
+                    ),
+                  ),
 
-          // Action Bar for Singles Selection (Visible only in Singles Mode)
-          if (_isSinglesMode)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
-              child: SizedBox(
-                height: 70, 
-                child: imagesAsync.when(
-                  data: (items) {
-                    final singlesCategories = items
-                        .where((i) {
-                           final g = i.generalCategory.toLowerCase();
-                           return g.contains('dress') || g.contains('gown') || g.contains('suit') || g.contains('jump') || g.contains('one');
-                        })
-                        .map((i) => i.customCategory)
-                        .toSet()
-                        .toList();
-                    
-                    if (singlesCategories.isEmpty) {
-                       singlesCategories.addAll(['Dress', 'Gowns', 'Jumpsuits']);
-                    }
-                    singlesCategories.sort();
+                // Action Bar for Singles Selection (Visible only in Singles Mode)
+                if (_isSinglesMode)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
+                    child: SizedBox(
+                      height: 70, 
+                      child: imagesAsync.when(
+                        data: (items) {
+                          final singlesCategories = items
+                              .where((i) {
+                                 final g = i.generalCategory.toLowerCase();
+                                 return g.contains('dress') || g.contains('gown') || g.contains('suit') || g.contains('jump') || g.contains('one');
+                              })
+                              .map((i) => i.customCategory)
+                              .toSet()
+                              .toList();
+                          
+                          if (singlesCategories.isEmpty) {
+                             singlesCategories.addAll(['Dress', 'Gowns', 'Jumpsuits']);
+                          }
+                          singlesCategories.sort();
 
-                    return SlidingOptionsDrawer(
-                      isSmall: true,
-                      optionsBackgroundColor: const Color(0xFF212121), // Dark Grey/Black for Uniform Background
-                      options: singlesCategories.map((cat) => 
-                        DrawerOptionItem(
-                          label: cat, 
-                          color: _getColorForCategory(cat), 
-                          onTap: () => setState(() => _activeSinglesCategory = cat)
-                        )
-                      ).toList(),
-                      child: Align(
-                         alignment: Alignment.centerLeft, 
-                         child: _activeSinglesCategory != null
-                             ? _buildInlineImageStrip(_activeSinglesCategory!, stripType: _StripType.singles) 
-                             : const SizedBox.shrink(),
+                          return SlidingOptionsDrawer(
+                            isSmall: true,
+                            optionsBackgroundColor: const Color(0xFF212121),
+                            options: singlesCategories.map((cat) => 
+                              DrawerOptionItem(
+                                label: cat, 
+                                color: _getColorForCategory(cat), 
+                                onTap: () => setState(() => _activeSinglesCategory = cat)
+                              )
+                            ).toList(),
+                            child: Align(
+                               alignment: Alignment.centerLeft, 
+                               child: _activeSinglesCategory != null
+                                   ? _buildInlineImageStrip(_activeSinglesCategory!, stripType: _StripType.singles) 
+                                   : const SizedBox.shrink(),
+                            ),
+                          );
+                        },
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (e, s) => const Center(child: Text("Error")),
                       ),
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, s) => const Center(child: Text("Error")),
-                ),
-              ),
-            ),
+                    ),
+                  ),
 
-          if (_isSinglesMode) const SizedBox(height: 2), // Gap
+                if (_isSinglesMode) const SizedBox(height: 2), 
 
-          // Footwear Drawer for Singles Mode
-          if (_isSinglesMode)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
-              child: SizedBox(
-                height: 70, 
-                child: imagesAsync.when(
-                  data: (items) {
-                    final footwearCategories = items
-                        .where((i) {
-                           final g = i.generalCategory.toLowerCase();
-                           return g.contains('shoe') || g.contains('footwear') || g.contains('heel') || g.contains('boot') || g.contains('sandal') || g.contains('sneaker');
-                        })
-                        .map((i) => i.customCategory)
-                        .toSet()
-                        .toList();
-                    
-                    if (footwearCategories.isEmpty) {
-                       footwearCategories.addAll(['Heels', 'Boots', 'Sneakers']);
-                    }
-                    footwearCategories.sort();
+                // Footwear Drawer for Singles Mode
+                if (_isSinglesMode)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 0, 8), 
+                    child: SizedBox(
+                      height: 70, 
+                      child: imagesAsync.when(
+                        data: (items) {
+                          final footwearCategories = items
+                              .where((i) {
+                                 final g = i.generalCategory.toLowerCase();
+                                 return g.contains('shoe') || g.contains('footwear') || g.contains('heel') || g.contains('boot') || g.contains('sandal') || g.contains('sneaker');
+                              })
+                              .map((i) => i.customCategory)
+                              .toSet()
+                              .toList();
+                          
+                          if (footwearCategories.isEmpty) {
+                             footwearCategories.addAll(['Heels', 'Boots', 'Sneakers']);
+                          }
+                          footwearCategories.sort();
 
-                    return SlidingOptionsDrawer(
-                      isSmall: true,
-                      optionsBackgroundColor: const Color(0xFF212121), // Dark Grey/Black for Uniform Background
-                      options: footwearCategories.map((cat) => 
-                        DrawerOptionItem(
-                          label: cat, 
-                          color: _getColorForCategory(cat), 
-                          onTap: () => setState(() => _activeFootwearCategory = cat)
-                        )
-                      ).toList(),
-                      child: Align(
-                         alignment: Alignment.centerLeft, 
-                         child: _activeFootwearCategory != null
-                             ? _buildInlineImageStrip(_activeFootwearCategory!, stripType: _StripType.footwear) 
-                             : const SizedBox.shrink(),
+                          return SlidingOptionsDrawer(
+                            isSmall: true,
+                            optionsBackgroundColor: const Color(0xFF212121),
+                            options: footwearCategories.map((cat) => 
+                              DrawerOptionItem(
+                                label: cat, 
+                                color: _getColorForCategory(cat), 
+                                onTap: () => setState(() => _activeFootwearCategory = cat)
+                              )
+                            ).toList(),
+                            child: Align(
+                               alignment: Alignment.centerLeft, 
+                               child: _activeFootwearCategory != null
+                                   ? _buildInlineImageStrip(_activeFootwearCategory!, stripType: _StripType.footwear) 
+                                   : const SizedBox.shrink(),
+                            ),
+                          );
+                        },
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (e, s) => const Center(child: Text("Error")),
                       ),
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, s) => const Center(child: Text("Error")),
-                ),
-              ),
-            ),
-          
-          const SizedBox(height: 12), // Gap
+                    ),
+                  ),
+                
+                const SizedBox(height: 12),
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), // Bottom padding for tab bar clearance
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                StylizedCategoryButton(
-                  icon: FontAwesomeIcons.shirt,
-                  label: 'Tops',
-                  color: Colors.cyanAccent,
-                  onTap: () => _onCategorySelected('Tops'),
-                  hasGlow: !_isSinglesMode, // Glows when NOT in singles mode
-                ),
-                StylizedCategoryButton(
-                  icon: FontAwesomeIcons.userAstronaut,
-                  label: 'Bottoms',
-                  color: Colors.purpleAccent,
-                  onTap: () => _onCategorySelected('Bottoms'),
-                  hasGlow: !_isSinglesMode, // Glows when NOT in singles mode
-                  customIconPath: 'assets/icons/bottom.png',
-                ),
-                StylizedCategoryButton(
-                  icon: FontAwesomeIcons.personDress,
-                  label: 'Singles',
-                  color: Colors.pinkAccent,
-                  onTap: () => _onCategorySelected('Singles'),
-                  hasGlow: _isSinglesMode, // Glows ONLY in singles mode
-                  customIconPath: 'assets/icons/bodycon.png',
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      StylizedCategoryButton(
+                        icon: FontAwesomeIcons.shirt,
+                        label: 'Tops',
+                        color: Colors.cyanAccent,
+                        onTap: () => _onCategorySelected('Tops'),
+                        hasGlow: !_isSinglesMode,
+                      ),
+                      StylizedCategoryButton(
+                        icon: FontAwesomeIcons.userAstronaut,
+                        label: 'Bottoms',
+                        color: Colors.purpleAccent,
+                        onTap: () => _onCategorySelected('Bottoms'),
+                        hasGlow: !_isSinglesMode,
+                        customIconPath: 'assets/icons/bottom.png',
+                      ),
+                      StylizedCategoryButton(
+                        icon: FontAwesomeIcons.personDress,
+                        label: 'Singles',
+                        color: Colors.pinkAccent,
+                        onTap: () => _onCategorySelected('Singles'),
+                        hasGlow: _isSinglesMode,
+                        customIconPath: 'assets/icons/bodycon.png',
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-      ],
-     ),
-    ),
-   );
- }
+    );
+  }
 
 
 
@@ -991,6 +1014,8 @@ class _SelectionCard extends StatelessWidget {
     this.onShare,  // Modified
     this.overlay,
   });
+  
+
 
   @override
   Widget build(BuildContext context) {
@@ -1123,6 +1148,76 @@ class _ImagePickerSheet extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _BentoTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool showLargeIcon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _BentoTile({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.isSelected = false,
+    this.showLargeIcon = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Defines the glow/border color. If selected, use the color itself fully bright.
+    // If not selected, it's dimmed.
+    final borderColor = isSelected ? color : color.withOpacity(0.5);
+    
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        // Use opaque scaffold background when selected to block the shadow from showing "inside"
+        // This creates the "Border Glow Only" effect.
+        color: isSelected ? Theme.of(context).scaffoldBackgroundColor : color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20), // Pill shape for compact text
+        border: Border.all(
+          color: borderColor, 
+          width: isSelected ? 2.0 : 1.0, 
+        ),
+        boxShadow: isSelected ? [
+          // Outer glow only
+          BoxShadow(
+            color: color.withOpacity(0.8), // Stronger glow color
+            blurRadius: 8,
+            spreadRadius: 0, // Keep it tight to the border
+          ),
+          BoxShadow(
+            color: color.withOpacity(0.4), // Ambient glow
+            blurRadius: 16,
+            spreadRadius: 2,
+          )
+        ] : [],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), // Compact padding
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : Colors.white70,
+                ),
+          ),
+        ),
       ),
     );
   }
