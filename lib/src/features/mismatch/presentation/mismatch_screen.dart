@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:style_advisor/src/features/auth/presentation/user_provider.dart';
+import 'package:style_advisor/src/features/mismatch/presentation/analysis_result_screen.dart';
+import 'package:style_advisor/src/features/style/data/style_repository.dart';
 import '../../wardrobe/application/wardrobe_api_provider.dart';
 import '../../wardrobe/domain/wardrobe_item.dart';
 import 'package:cached_network_image/cached_network_image.dart'; // Ensure this is available or use Image.network
@@ -60,56 +63,86 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
 
 
   Future<void> _analyze() async {
-    bool isValid = false;
-
-    if (_isSinglesMode) {
-      // In Singles Mode, we need at least the "One Piece" (which acts as a bottom slot)
-      if (_selectedDress != null) {
-        isValid = true;
-      }
-    } else {
-      // In Standard Mode, need Tops (non-null) and Bottom
-      if (!_selectedTops.contains(null) && _selectedBottom != null) {
-        isValid = true;
-      }
-    }
-
-    if (!isValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isSinglesMode 
-            ? 'Please select a Bodycon dress' 
-            : 'Please select all Tops and a Bottom'),
-        ),
-      );
-      return;
-    }
-    
     setState(() {
       _isAnalyzing = true;
       _analysisResult = null;
-      _showMergeOverlay = true;
     });
 
-    // Play Merge Animation
-    await _mergeController.forward(from: 0);
+    try {
+      if (_isSinglesMode) {
+        throw Exception("Style scoring for singles is coming soon!");
+      }
 
-    setState(() {
-      _showMergeOverlay = false;
-    });
+      final user = ref.read(userProvider);
+      if (user == null) throw Exception("User session not found");
 
-    _glowController.repeat(reverse: true);
+      final items = ref.read(wardrobeApiProvider).asData?.value ?? [];
+      
+      // Get Top
+      final topUrl = _selectedTops.isNotEmpty ? _selectedTops[0] : null;
+      if (topUrl == null) throw Exception("Please select a top");
+      
+      final topItem = items.firstWhere(
+        (i) => i.imageUrl == topUrl, 
+        orElse: () => throw Exception("Top item data not found")
+      );
 
-    // Simulate HTTP Request (Dummy 3 seconds)
+      // Get Bottom
+      if (_selectedBottom == null) throw Exception("Please select a bottom");
+      
+      final bottomItem = items.firstWhere(
+        (i) => i.imageUrl == _selectedBottom, 
+        orElse: () => throw Exception("Bottom item data not found")
+      );
+      
+      // Get Layer (Optional)
+      WardrobeItem? layerItem;
+      if (_selectedTops.length > 1 && _selectedTops[1] != null) {
+         try {
+           layerItem = items.firstWhere((i) => i.imageUrl == _selectedTops[1]);
+         } catch (_) {} 
+      }
 
-    await Future.delayed(const Duration(seconds: 3));
-    
-    _glowController.stop();
-    if (mounted) {
-      setState(() {
-        _isAnalyzing = false;
-        _analysisResult = "Looking good! \nNo mismatch detected."; 
-      });
+      final repo = ref.read(styleRepositoryProvider);
+      
+      // Assuming the API returns a JSON string or descriptive text.
+      // If it returns a JSON object, we might want to parse it. 
+      // For now, we display the raw response or basic success.
+      final result = await repo.scoreStyle(
+        mood: _selectedMood ?? "Casual Date",
+        top: topItem,
+        bottom: bottomItem,
+        layer: layerItem,
+        userId: user.id,
+      );
+      
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnalysisResultScreen(
+            topImage: topUrl,
+            bottomImage: _selectedBottom,
+            layerImage: (_selectedTops.length > 1) ? _selectedTops[1] : null,
+            result: result.toString(),
+          ),
+        ),
+      );
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll("Exception: ", "")),
+            backgroundColor: Colors.redAccent,
+          )
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAnalyzing = false);
+      }
     }
   }
 
