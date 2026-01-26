@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:style_advisor/src/common_widgets/doughnut_chart.dart';
 
 class AnalysisResultScreen extends StatelessWidget {
   final String? topImage;
@@ -7,6 +8,11 @@ class AnalysisResultScreen extends StatelessWidget {
   final String? layerImage;
   final String? singlesImage; // For when we support singles later
   final String result;
+  
+  // Scores (0-100)
+  final double totalScore;
+  final double vibeScore;
+  final double colorScore;
 
   const AnalysisResultScreen({
     super.key,
@@ -15,6 +21,9 @@ class AnalysisResultScreen extends StatelessWidget {
     this.layerImage,
     this.singlesImage,
     required this.result,
+    this.totalScore = 85.0,
+    this.vibeScore = 80.0,
+    this.colorScore = 90.0,
   });
 
   @override
@@ -35,41 +44,37 @@ class AnalysisResultScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Outfit Visuals
-            Container(
-              height: 300,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Row(
-                  children: [
+
+
+            // Outfit Visuals (Horizontal Scroll matching MismatchScreen)
+            SizedBox(
+              height: 200, 
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
                     if (singlesImage != null)
-                      Expanded(child: _buildImage(singlesImage!))
+                      _buildImageCard(singlesImage!, context)
                     else ...[
-                      // Top Half (Layer + Top)
-                      Expanded(
-                        child: Column(
-                          children: [
-                            if (topImage != null) 
-                              Expanded(child: _buildImage(topImage!)),
-                            if (layerImage != null)
-                              Expanded(child: _buildImage(layerImage!)),
-                          ],
-                        ),
-                      ),
-                      // Bottom Half
+                       if (topImage != null) 
+                          _buildImageCard(topImage!, context),
+                       if (layerImage != null)
+                          _buildImageCard(layerImage!, context),
                        if (bottomImage != null)
-                        Expanded(child: _buildImage(bottomImage!)),
+                          _buildImageCard(bottomImage!, context),
                     ],
-                  ],
-                ),
+                ],
               ),
             ),
             
             const SizedBox(height: 24),
+
+            // Score Section with Doughnut Chart
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildScoreRow(),
+            ),
+
             
             // Result Card
             Container(
@@ -113,16 +118,50 @@ class AnalysisResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildImage(String url) {
+  Widget _buildImageCard(String url, BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth - 48) / 2.3; // Match MismatchScreen
+    
     return Container(
-      margin: const EdgeInsets.all(2),
+      width: cardWidth,
+      height: 200,
+      margin: const EdgeInsets.only(right: 16),
       decoration: BoxDecoration(
-         borderRadius: BorderRadius.circular(12),
-         image: DecorationImage(
-            image: CachedNetworkImageProvider(url),
-            fit: BoxFit.cover,
-         ),
+         color: const Color(0xFF1E1E1E),
+         borderRadius: BorderRadius.circular(16),
+         border: Border.all(color: Colors.white10),
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoreRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+           _buildSingleChart(totalScore, "Slay Score", Colors.cyanAccent),
+           _buildSingleChart(vibeScore, "Vibe Check", Colors.pinkAccent),
+           _buildSingleChart(colorScore, "Color Match", Colors.purpleAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSingleChart(double score, String label, Color color) {
+    return DoughnutChart(
+      percentage: score / 100,
+      score: score,
+      size: 80, // Reduced size
+      primaryColor: color,
+      label: label,
     );
   }
 }

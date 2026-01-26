@@ -118,6 +118,18 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
       
       if (!mounted) return;
 
+      // Extract scores (handle if they are strings or numbers)
+      double parseScore(dynamic val) {
+        if (val is num) return val.toDouble();
+        if (val is String) return double.tryParse(val) ?? 0.0;
+        return 0.0;
+      }
+
+      final double totalScore = parseScore(result['score'] ?? 85);
+      final double vibeScore = parseScore(result['mood_score'] ?? 80);
+      final double colorScore = parseScore(result['match_confidence'] ?? 90);
+      final String verdict = result['explanation'] ?? result['message'] ?? result.toString();
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -125,7 +137,10 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
             topImage: topUrl,
             bottomImage: _selectedBottom,
             layerImage: (_selectedTops.length > 1) ? _selectedTops[1] : null,
-            result: result.toString(),
+            result: verdict,
+            totalScore: totalScore,
+            vibeScore: vibeScore,
+            colorScore: colorScore,
           ),
         ),
       );

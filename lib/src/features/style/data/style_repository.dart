@@ -13,7 +13,7 @@ StyleRepository styleRepository(StyleRepositoryRef ref) {
 class StyleRepository {
   final _dio = Dio();
 
-  Future<String> scoreStyle({
+  Future<Map<String, dynamic>> scoreStyle({
     required String mood,
     required WardrobeItem top,
     required WardrobeItem bottom,
@@ -47,11 +47,7 @@ class StyleRepository {
       );
 
       if (response.statusCode == 200) {
-        // Assuming response contains a message or score.
-        // Adjust based on actual response structure. User didn't specify response format.
-        // Assuming { "data": "Score analysis..." } or similar.
-        // Returning the stringified data for now or a specific field.
-        return response.data.toString();
+        return response.data as Map<String, dynamic>;
       } else {
         throw Exception('Failed to score style: ${response.statusCode}');
       }
