@@ -118,17 +118,36 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
       
       if (!mounted) return;
 
+      debugPrint("API Response: $result"); // Debugging
+
       // Extract scores (handle if they are strings or numbers)
       double parseScore(dynamic val) {
         if (val is num) return val.toDouble();
-        if (val is String) return double.tryParse(val) ?? 0.0;
+        if (val is String) {
+             // Handle "85%" or "85"
+             final cleaned = val.replaceAll('%', '').trim();
+             return double.tryParse(cleaned) ?? 0.0;
+        }
         return 0.0;
       }
 
-      final double totalScore = parseScore(result['score'] ?? 85);
-      final double vibeScore = parseScore(result['mood_score'] ?? 80);
-      final double colorScore = parseScore(result['match_confidence'] ?? 90);
-      final String verdict = result['explanation'] ?? result['message'] ?? result.toString();
+      // Check for nested 'data' if API wrapper exists
+      final data = result.containsKey('data') ? result['data'] : result;
+
+      // Map Keys: total_score, mood_score, match_confidence (inside matched_palette)
+      final double totalScore = parseScore(data['total_score'] ?? 85); 
+      final double vibeScore = parseScore(data['mood_score'] ?? 80);
+      
+      double colorScore = 90;
+      if (data['matched_palette'] != null && data['matched_palette'] is Map) {
+         colorScore = parseScore(data['matched_palette']['match_confidence'] ?? 90);
+      } else {
+         colorScore = parseScore(data['match_confidence'] ?? 90);
+      }
+
+      final String verdict = data['critique'] ?? data['mood_analysis'] ?? data.toString();
+      
+      final Map<String, dynamic>? suggestions = data['suggestions'];
 
       Navigator.push(
         context,
@@ -141,6 +160,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
             totalScore: totalScore,
             vibeScore: vibeScore,
             colorScore: colorScore,
+            suggestions: suggestions,
           ),
         ),
       );

@@ -13,6 +13,8 @@ class AnalysisResultScreen extends StatelessWidget {
   final double totalScore;
   final double vibeScore;
   final double colorScore;
+  
+  final Map<String, dynamic>? suggestions;
 
   const AnalysisResultScreen({
     super.key,
@@ -24,6 +26,7 @@ class AnalysisResultScreen extends StatelessWidget {
     this.totalScore = 85.0,
     this.vibeScore = 80.0,
     this.colorScore = 90.0,
+    this.suggestions,
   });
 
   @override
@@ -112,6 +115,11 @@ class AnalysisResultScreen extends StatelessWidget {
                 ],
               ),
             ),
+            
+            if (suggestions != null && suggestions!.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              _buildSuggestions(context),
+            ],
           ],
         ),
       ),
@@ -163,5 +171,87 @@ class AnalysisResultScreen extends StatelessWidget {
       primaryColor: color,
       label: label,
     );
+  }
+
+  Widget _buildSuggestions(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.style, color: Colors.amberAccent),
+              const SizedBox(width: 10),
+              Text(
+                "Style Up",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...suggestions!.entries.map((entry) {
+             IconData icon;
+             String title = entry.key.replaceAll('_', ' ').capitalize();
+             switch (entry.key) {
+               case 'footwear': icon = Icons.do_not_step; break;
+               case 'bag': icon = Icons.shopping_bag; break;
+               case 'outerwear': icon = Icons.checkroom; break;
+               case 'accessories': icon = Icons.watch; break;
+               case 'makeup_hair': icon = Icons.face; break;
+               default: icon = Icons.star;
+             }
+             
+             return Padding(
+               padding: const EdgeInsets.only(bottom: 12),
+               child: Row(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   Icon(icon, color: Colors.white54, size: 20),
+                   const SizedBox(width: 12),
+                   Expanded(
+                     child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         Text(
+                           title,
+                           style: const TextStyle(
+                             color: Colors.white,
+                             fontWeight: FontWeight.bold,
+                             fontSize: 14,
+                           ),
+                         ),
+                         const SizedBox(height: 4),
+                         Text(
+                           entry.value.toString(),
+                           style: const TextStyle(
+                             color: Colors.white70,
+                             fontSize: 14,
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                 ],
+               ),
+             );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
 }
