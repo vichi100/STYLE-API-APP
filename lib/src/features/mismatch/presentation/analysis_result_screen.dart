@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:style_advisor/src/common_widgets/doughnut_chart.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
 
 class AnalysisResultScreen extends StatelessWidget {
   final String? topImage;
@@ -15,6 +18,7 @@ class AnalysisResultScreen extends StatelessWidget {
   final double colorScore;
   
   final Map<String, dynamic>? suggestions;
+  final String? inspirationUrl;
 
   const AnalysisResultScreen({
     super.key,
@@ -27,6 +31,7 @@ class AnalysisResultScreen extends StatelessWidget {
     this.vibeScore = 80.0,
     this.colorScore = 90.0,
     this.suggestions,
+    this.inspirationUrl,
   });
 
   @override
@@ -120,6 +125,11 @@ class AnalysisResultScreen extends StatelessWidget {
               const SizedBox(height: 24),
               _buildSuggestions(context),
             ],
+
+            if (inspirationUrl != null && inspirationUrl!.isNotEmpty) ...[
+               const SizedBox(height: 24),
+               _buildInspirationButton(context),
+            ],
           ],
         ),
       ),
@@ -198,6 +208,7 @@ class AnalysisResultScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          if (suggestions != null)
           ...suggestions!.entries.map((entry) {
              IconData icon;
              String title = entry.key.replaceAll('_', ' ').capitalize();
@@ -247,6 +258,74 @@ class AnalysisResultScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+ 
+
+
+  Widget _buildInspirationButton(BuildContext context) {
+    return Container(
+      height: 100,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        image: const DecorationImage(
+          image: AssetImage("assets/icons/inspiration_bg.png"),
+          fit: BoxFit.cover,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black45,
+            offset: Offset(0, 4),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _launchPinterest,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Text(
+                    "See Inspiration", 
+                    style: TextStyle(
+                      fontSize: 20, 
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 10.0,
+                          color: Colors.grey.withOpacity(0.9), // Very light gray shadow
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    )
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _launchPinterest() async {
+      if (inspirationUrl == null) return;
+      final uri = Uri.parse(inspirationUrl!);
+      try {
+          if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+             debugPrint("Could not launch $inspirationUrl");
+          }
+      } catch (e) {
+          debugPrint("Error launching URL: $e");
+      }
   }
 }
 

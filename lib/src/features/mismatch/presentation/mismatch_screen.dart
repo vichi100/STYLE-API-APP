@@ -148,6 +148,8 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
       final String verdict = data['critique'] ?? data['mood_analysis'] ?? data.toString();
       
       final Map<String, dynamic>? suggestions = data['suggestions'];
+      // Extract inspiration URL if available
+      final String? inspirationUrl = data['pinterest_search_url'];
 
       Navigator.push(
         context,
@@ -161,6 +163,7 @@ class _MismatchScreenState extends ConsumerState<MismatchScreen> with TickerProv
             vibeScore: vibeScore,
             colorScore: colorScore,
             suggestions: suggestions,
+            inspirationUrl: inspirationUrl,
           ),
         ),
       );
